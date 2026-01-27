@@ -23,6 +23,8 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
 ].filter(Boolean);
+console.log("allowedOrigins",allowedOrigins);
+// console.log(process.env.NODE_ENV);
 
 app.use(cors({
   origin: (origin, callback) => {
