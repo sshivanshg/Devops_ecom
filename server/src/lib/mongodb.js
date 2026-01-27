@@ -29,10 +29,10 @@ async function connectDB() {
     const dbName = uri.split('/').pop()?.split('?')[0] || 'atelier';
     db = client.db(dbName);
     
-    console.log(`✅ Connected to MongoDB: ${dbName}`);
+    console.log(`Connected to MongoDB: ${dbName}`);
     return db;
   } catch (error) {
-    console.error('❌ MongoDB connection failed:', error.message);
+    console.error('MongoDB connection failed:', error.message);
     throw error;
   }
 }

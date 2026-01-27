@@ -1,7 +1,6 @@
 /**
  * ProductImageUpload Component
- * Cloudinary-powered image upload with drag-and-drop support
- * Uses Cloudinary Upload Widget for direct browser-to-CDN uploads
+ * Native file upload with Cloudinary CDN storage
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -12,24 +11,8 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { cn } from '../../lib/utils';
-import { getThumbnailUrl, extractPublicId, isCloudinaryUrl } from '../../lib/cloudinary';
-
-// Load Cloudinary Upload Widget script
-const loadCloudinaryWidget = () => {
-  return new Promise((resolve, reject) => {
-    if (window.cloudinary) {
-      resolve(window.cloudinary);
-      return;
-    }
-    
-    const script = document.createElement('script');
-    script.src = 'https://upload-widget.cloudinary.com/global/all.js';
-    script.async = true;
-    script.onload = () => resolve(window.cloudinary);
-    script.onerror = reject;
-    document.body.appendChild(script);
-  });
-};
+import { getThumbnailUrl, isCloudinaryUrl } from '../../lib/cloudinary';
+import { useAuth } from '../../contexts/AuthContext';
 
 export function ProductImageUpload({ 
   value = [], 
@@ -39,127 +22,104 @@ export function ProductImageUpload({
 }) {
   const [images, setImages] = useState(value);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
   const [error, setError] = useState('');
-  const [cloudinaryLoaded, setCloudinaryLoaded] = useState(false);
-  const widgetRef = useRef(null);
+  const fileInputRef = useRef(null);
 
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'atelier_unsigned';
+  const cloudNameEnv = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const { getAuthHeaders } = useAuth();
 
   // Sync internal state with prop
   useEffect(() => {
     setImages(value);
   }, [value]);
 
-  // Load Cloudinary widget on mount
-  useEffect(() => {
-    loadCloudinaryWidget()
-      .then(() => setCloudinaryLoaded(true))
-      .catch((err) => {
-        console.error('Failed to load Cloudinary widget:', err);
-        setError('Failed to load image uploader');
-      });
-  }, []);
-
-  // Initialize the upload widget
-  const openWidget = useCallback(() => {
-    if (!cloudinaryLoaded || !window.cloudinary) {
-      setError('Upload widget not ready. Please try again.');
-      return;
-    }
-
-    if (!cloudName) {
-      setError('Cloudinary not configured. Please set VITE_CLOUDINARY_CLOUD_NAME.');
-      return;
-    }
+  /**
+   * Native file upload to Cloudinary using a signed upload (no upload_preset required).
+   * We first ask our backend for a secure signature, then upload directly to Cloudinary.
+   */
+  const handleFileSelect = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     const remainingSlots = maxImages - images.length;
-    if (remainingSlots <= 0) {
+    const filesToUpload = files.slice(0, remainingSlots);
+
+    if (filesToUpload.length === 0) {
       setError(`Maximum ${maxImages} images allowed`);
       return;
     }
 
-    widgetRef.current = window.cloudinary.createUploadWidget(
-      {
-        cloudName,
-        uploadPreset,
-        folder,
-        sources: ['local', 'url', 'camera'],
-        multiple: true,
-        maxFiles: remainingSlots,
-        resourceType: 'image',
-        clientAllowedFormats: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
-        maxImageFileSize: 10000000, // 10MB
-        cropping: false,
-        showAdvancedOptions: false,
-        showUploadMoreButton: true,
-        singleUploadAutoClose: false,
-        styles: {
-          palette: {
-            window: '#18181B',
-            windowBorder: '#3F3F46',
-            tabIcon: '#10B981',
-            menuIcons: '#A1A1AA',
-            textDark: '#FAFAFA',
-            textLight: '#A1A1AA',
-            link: '#10B981',
-            action: '#10B981',
-            inactiveTabIcon: '#71717A',
-            error: '#EF4444',
-            inProgress: '#10B981',
-            complete: '#10B981',
-            sourceBg: '#27272A'
-          },
-          fonts: {
-            default: null,
-            "'Inter', sans-serif": {
-              url: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap',
-              active: true
-            }
-          }
-        }
-      },
-      (error, result) => {
-        if (error) {
-          console.error('Upload error:', error);
-          setError('Upload failed. Please try again.');
-          setUploading(false);
-          return;
+    setUploading(true);
+    setError('');
+
+    let uploaded = 0;
+    for (const file of filesToUpload) {
+      try {
+        setUploadProgress(`Uploading ${uploaded + 1}/${filesToUpload.length}...`);
+
+        // 1) Ask backend for a signed upload signature
+        const sigRes = await fetch(
+          `/api/media/signature?folder=${encodeURIComponent(folder)}`,
+          { headers: getAuthHeaders() }
+        );
+
+        const sigData = await sigRes.json();
+
+        if (!sigRes.ok) {
+          throw new Error(sigData.error || 'Failed to get upload signature');
         }
 
-        if (result.event === 'queues-start') {
-          setUploading(true);
-          setError('');
+        const cloudName = sigData.cloudName || cloudNameEnv;
+
+        // 2) Upload file directly to Cloudinary with signature
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('api_key', sigData.apiKey);
+        formData.append('timestamp', sigData.timestamp);
+        formData.append('signature', sigData.signature);
+        formData.append('folder', sigData.folder || folder);
+
+        const response = await fetch(
+          `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+          { method: 'POST', body: formData }
+        );
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error?.message || 'Upload failed');
         }
 
-        if (result.event === 'success') {
-          const newImage = {
-            url: result.info.secure_url,
-            publicId: result.info.public_id,
-            width: result.info.width,
-            height: result.info.height,
-            format: result.info.format
-          };
+        const data = await response.json();
+        const newImage = {
+          url: data.secure_url,
+          publicId: data.public_id,
+          width: data.width,
+          height: data.height,
+          format: data.format
+        };
 
-          setImages(prev => {
-            const updated = [...prev, newImage];
-            onChange?.(updated);
-            return updated;
-          });
-        }
-
-        if (result.event === 'queues-end') {
-          setUploading(false);
-        }
-
-        if (result.event === 'close') {
-          setUploading(false);
-        }
+        setImages(prev => {
+          const updated = [...prev, newImage];
+          onChange?.(updated);
+          return updated;
+        });
+        
+        uploaded++;
+      } catch (err) {
+        console.error('File upload error:', err);
+        setError(`Failed to upload ${file.name}: ${err.message}`);
       }
-    );
+    }
 
-    widgetRef.current.open();
-  }, [cloudinaryLoaded, cloudName, uploadPreset, folder, images.length, maxImages, onChange]);
+    setUploading(false);
+    setUploadProgress('');
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // Remove an image
   const removeImage = useCallback((index) => {
@@ -176,7 +136,7 @@ export function ProductImageUpload({
     onChange?.(newOrder);
   }, [onChange]);
 
-  // Add image from URL (fallback method)
+  // Add image from URL
   const [urlInput, setUrlInput] = useState('');
   const addFromUrl = () => {
     if (!urlInput.trim()) return;
@@ -188,7 +148,7 @@ export function ProductImageUpload({
 
     const newImage = {
       url: urlInput.trim(),
-      publicId: null, // External URL, no public_id
+      publicId: null,
       width: null,
       height: null
     };
@@ -201,30 +161,42 @@ export function ProductImageUpload({
 
   return (
     <div className="space-y-4">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        multiple
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+
       {/* Upload Area */}
       <div
-        onClick={openWidget}
+        onClick={() => !uploading && fileInputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && !uploading && fileInputRef.current?.click()}
         className={cn(
-          'border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all',
+          'border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all select-none',
           uploading 
-            ? 'border-emerald-500/50 bg-emerald-500/5' 
-            : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/50',
-          !cloudinaryLoaded && 'opacity-50 cursor-not-allowed'
+            ? 'border-emerald-500/50 bg-emerald-500/5 cursor-wait' 
+            : 'border-zinc-700 hover:border-emerald-500/50 hover:bg-zinc-800/50'
         )}
       >
         {uploading ? (
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="w-10 h-10 animate-spin text-emerald-400" />
-            <p className="text-sm text-zinc-300">Uploading to Cloudinary CDN...</p>
+            <p className="text-sm text-zinc-300">{uploadProgress || 'Uploading...'}</p>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
             <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center">
-              <Cloud className="w-8 h-8 text-emerald-400" />
+              <Upload className="w-8 h-8 text-emerald-400" />
             </div>
             <div>
               <p className="font-medium text-zinc-100">
-                Click to upload images
+                Click to select images
               </p>
               <p className="text-sm text-zinc-500">
                 JPG, PNG, WebP up to 10MB • {images.length}/{maxImages} images
@@ -234,8 +206,18 @@ export function ProductImageUpload({
         )}
       </div>
 
-      {/* URL Input Fallback */}
+      {/* Button + URL Input */}
       <div className="flex gap-2">
+        <Button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          variant="outline"
+          className="border-zinc-700"
+          disabled={uploading || images.length >= maxImages}
+        >
+          <Upload className="w-4 h-4 mr-2" />
+          Choose Files
+        </Button>
         <input
           type="url"
           value={urlInput}
@@ -265,6 +247,12 @@ export function ProductImageUpload({
           >
             <AlertCircle className="w-4 h-4" />
             {error}
+            <button 
+              onClick={() => setError('')}
+              className="ml-auto text-zinc-500 hover:text-zinc-300"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
