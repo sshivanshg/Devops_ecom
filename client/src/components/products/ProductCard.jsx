@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye, ShoppingBag, Sparkles, Info } from "lucide-react";
+import { Eye, ShoppingBag, Sparkles, Info, Cloud } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
@@ -12,6 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/Dialog";
+import { getThumbnailUrl, isCloudinaryUrl } from "../../lib/cloudinary";
 
 /**
  * ProductCard component with hover image transitions and quick view.
@@ -44,23 +45,35 @@ export function ProductCard({ product, index = 0, showMatchReason = false }) {
     >
       {/* Image Container */}
       <Link to={`/products/${product.slug}`} className="block relative aspect-[3/4] overflow-hidden bg-muted mb-4">
-        {/* Primary Image */}
+        {/* Primary Image - Cloudinary Optimized */}
         <motion.img
-          src={product.images[0]}
+          src={getThumbnailUrl(product.images[0])}
           alt={product.name}
           className="absolute inset-0 w-full h-full object-cover"
+          loading="lazy"
           animate={{ opacity: isHovered ? 0 : 1 }}
           transition={{ duration: 0.4 }}
         />
 
-        {/* Hover Image */}
+        {/* Hover Image - Cloudinary Optimized */}
         <motion.img
-          src={product.hoverImage || product.images[1] || product.images[0]}
+          src={getThumbnailUrl(product.hoverImage || product.images[1] || product.images[0])}
           alt={`${product.name} alternate view`}
           className="absolute inset-0 w-full h-full object-cover"
+          loading="lazy"
           animate={{ opacity: isHovered ? 1 : 0, scale: isHovered ? 1.05 : 1 }}
           transition={{ duration: 0.4 }}
         />
+
+        {/* CDN Indicator (for demo) */}
+        {isCloudinaryUrl(product.images[0]) && (
+          <div className="absolute bottom-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/80 rounded text-[10px] font-medium text-white">
+              <Cloud className="w-3 h-3" />
+              CDN
+            </div>
+          </div>
+        )}
 
         {/* Status Badge */}
         {product.status && (
@@ -144,9 +157,10 @@ export function ProductCard({ product, index = 0, showMatchReason = false }) {
                   <div className="grid sm:grid-cols-2 gap-6 mt-4">
                     <div className="aspect-[3/4] bg-muted overflow-hidden">
                       <img
-                        src={product.images[0]}
+                        src={getThumbnailUrl(product.images[0])}
                         alt={product.name}
                         className="w-full h-full object-cover"
+                        loading="lazy"
                       />
                     </div>
                     <div className="flex flex-col">

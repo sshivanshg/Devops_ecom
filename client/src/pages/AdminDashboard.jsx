@@ -9,7 +9,7 @@ import {
   Users, Package, ShoppingBag, Crown, DollarSign,
   TrendingUp, TrendingDown, Settings, LogOut, BarChart3, Home,
   ChevronRight, Eye, EyeOff, Edit, Trash2, Plus, Calendar,
-  Check, X, Loader2, Image as ImageIcon, AlertCircle, Layers
+  Check, X, Loader2, Image as ImageIcon, AlertCircle, Layers, Boxes
 } from 'lucide-react';
 import { Link, Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
@@ -25,6 +25,8 @@ import {
   BarChart, Bar
 } from 'recharts';
 import { format, parseISO } from 'date-fns';
+import { InventoryTable } from '../components/admin/InventoryTable';
+import { ProductForm } from '../components/admin/ProductForm';
 
 // ============================================
 // SIDEBAR NAVIGATION
@@ -37,6 +39,7 @@ function AdminSidebar() {
   const navItems = [
     { name: 'Dashboard', path: '/admin', icon: BarChart3, end: true },
     { name: 'Products', path: '/admin/products', icon: Package },
+    { name: 'Inventory', path: '/admin/inventory', icon: Boxes },
     { name: 'Orders', path: '/admin/orders', icon: ShoppingBag },
     { name: 'Customers', path: '/admin/customers', icon: Users },
     { name: 'Settings', path: '/admin/settings', icon: Settings },
@@ -430,6 +433,8 @@ function ProductsManagement() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showInventory, setShowInventory] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
   const { getAuthHeaders } = useAuth();
 
   const fetchProducts = async () => {
@@ -494,8 +499,34 @@ function ProductsManagement() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-serif text-zinc-100">Product Matrix</h2>
-        <CreateProductDialog onCreated={fetchProducts} />
+        <div className="flex items-center gap-3">
+          <Link to="/admin/inventory" className="text-sm text-zinc-400 hover:text-zinc-100 flex items-center gap-1">
+            <Boxes className="w-4 h-4" />
+            Stock Center
+          </Link>
+          <Button 
+            onClick={() => setShowProductForm(true)} 
+            className="bg-emerald-500 hover:bg-emerald-600"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Product
+          </Button>
+        </div>
       </div>
+      
+      {/* Industry-Standard Product Form */}
+      <ProductForm 
+        open={showProductForm} 
+        onOpenChange={(open) => {
+          setShowProductForm(open);
+          if (!open) setEditingProduct(null);
+        }}
+        onSuccess={() => {
+          fetchProducts();
+          setEditingProduct(null);
+        }}
+        editProduct={editingProduct}
+      />
 
       <div className="bg-zinc-800/50 border border-zinc-700/50 rounded-xl overflow-hidden">
         <table className="w-full">
@@ -602,6 +633,16 @@ function ProductsManagement() {
                 </td>
                 <td className="p-4 text-right">
                   <div className="flex items-center justify-end gap-1">
+                    <button
+                      onClick={() => { 
+                        setEditingProduct(product); 
+                        setShowProductForm(true); 
+                      }}
+                      className="p-2 text-zinc-400 hover:text-emerald-400"
+                      title="Edit Product"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={() => { setSelectedProduct(product); setShowInventory(true); }}
                       className="p-2 text-zinc-400 hover:text-zinc-100"
@@ -1604,6 +1645,7 @@ export function AdminDashboard() {
         <Routes>
           <Route index element={<DashboardOverview />} />
           <Route path="products" element={<ProductsManagement />} />
+          <Route path="inventory" element={<InventoryTable />} />
           <Route path="orders" element={<OrdersManagement />} />
           <Route path="customers" element={<CustomersManagement />} />
           <Route path="settings" element={<SiteSettings />} />

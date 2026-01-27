@@ -214,7 +214,7 @@ router.get('/products', async (req, res) => {
 
 /**
  * POST /api/admin/products
- * Create a new product
+ * Create a new product with variants
  */
 router.post('/products', async (req, res) => {
   try {
@@ -222,7 +222,8 @@ router.post('/products', async (req, res) => {
     const { 
       name, slug, description, price, originalPrice,
       category, sizes, colors, images, details, styles,
-      status, isFeatured, isActive, stock 
+      variants, metadata,
+      status, isFeatured, isActive
     } = req.body;
 
     if (!name || !price || !category) {
@@ -240,6 +241,34 @@ router.post('/products', async (req, res) => {
       return res.status(409).json({ error: 'Product with this slug already exists' });
     }
 
+    // Generate variants if not provided but sizes/colors are
+    let productVariants = variants || [];
+    const productSizes = sizes || ['S', 'M', 'L', 'XL'];
+    const productColors = colors || [{ name: 'Black', value: '#1A1A1A' }];
+    
+    if (productVariants.length === 0 && productSizes.length > 0 && productColors.length > 0) {
+      // Auto-generate variants from sizes and colors
+      for (const size of productSizes) {
+        for (const color of productColors) {
+          const colorName = typeof color === 'string' ? color : color.name;
+          const colorValue = typeof color === 'string' ? '#1A1A1A' : color.value;
+          const sku = `${productSlug.toUpperCase().substring(0, 3)}-${size}-${colorName.toUpperCase().replace(/\s/g, '').substring(0, 3)}`;
+          
+          productVariants.push({
+            sku,
+            size,
+            color: colorName,
+            colorValue,
+            stock: 10, // Default stock
+            price: null // Use base price
+          });
+        }
+      }
+    }
+
+    // Calculate total stock from variants
+    const totalStock = productVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
+
     const newProduct = {
       name,
       slug: productSlug,
@@ -247,15 +276,24 @@ router.post('/products', async (req, res) => {
       price: parseFloat(price),
       originalPrice: originalPrice ? parseFloat(originalPrice) : null,
       category,
-      sizes: sizes || ['S', 'M', 'L', 'XL'],
-      colors: colors || [{ name: 'Black', value: '#1A1A1A' }],
+      sizes: productSizes,
+      colors: productColors,
       images: images || [],
       details: details || [],
       styles: styles || [],
-      status: status || null,
+      variants: productVariants,
+      inventory: productVariants, // backwards compatibility
+      metadata: metadata || {
+        fabric: '',
+        fitType: 'Regular',
+        careInstructions: '',
+        madeIn: ''
+      },
+      status: status || 'draft', // draft or published
       isFeatured: isFeatured || false,
       isActive: isActive !== false,
-      stock: stock || 100,
+      stock: totalStock,
+      publishAt: null,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -593,6 +631,117 @@ router.get('/analytics', async (req, res) => {
 });
 
 /**
+ * GET /api/admin/inventory
+ * Get flattened inventory view (Stock Command Center)
+ * Each row = one SKU with product name, size, color, stock
+ */
+router.get('/inventory', async (req, res) => {
+  try {
+    const db = getDB();
+    
+    const products = await db.collection('products')
+      .find({}, { projection: { name: 1, slug: 1, variants: 1, inventory: 1, images: 1, category: 1, price: 1 } })
+      .sort({ name: 1 })
+      .toArray();
+
+    // Flatten: each variant becomes a row
+    const inventory = [];
+    for (const product of products) {
+      const variants = product.variants || product.inventory || [];
+      for (const variant of variants) {
+        inventory.push({
+          productId: product._id.toString(),
+          productName: product.name,
+          productSlug: product.slug,
+          category: product.category,
+          price: variant.price || product.price,
+          image: product.images?.[0] || null,
+          sku: variant.sku || `${variant.size}-${variant.color}`,
+          size: variant.size,
+          color: variant.color,
+          colorValue: variant.colorValue,
+          stock: variant.stock || 0,
+        });
+      }
+    }
+
+    res.json(inventory);
+  } catch (error) {
+    console.error('Admin flattened inventory error:', error);
+    res.status(500).json({ error: 'Failed to fetch inventory' });
+  }
+});
+
+/**
+ * PATCH /api/admin/inventory/:sku
+ * Update stock for a specific SKU (inline editing)
+ * Uses MongoDB positional operator for efficient updates
+ */
+router.patch('/inventory/:sku', async (req, res) => {
+  try {
+    const db = getDB();
+    const { sku } = req.params;
+    const { stock } = req.body;
+
+    if (typeof stock !== 'number' || stock < 0) {
+      return res.status(400).json({ error: 'Stock must be a non-negative number' });
+    }
+
+    // Try to update in variants array first, then inventory array
+    let result = await db.collection('products').updateOne(
+      { 'variants.sku': sku },
+      { 
+        $set: { 
+          'variants.$.stock': stock,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    // Fallback to inventory array if variants not found
+    if (result.matchedCount === 0) {
+      result = await db.collection('products').updateOne(
+        { 'inventory.sku': sku },
+        { 
+          $set: { 
+            'inventory.$.stock': stock,
+            updatedAt: new Date()
+          }
+        }
+      );
+    }
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: `SKU ${sku} not found` });
+    }
+
+    // Recalculate total stock for the product
+    const product = await db.collection('products').findOne(
+      { $or: [{ 'variants.sku': sku }, { 'inventory.sku': sku }] }
+    );
+    
+    if (product) {
+      const variants = product.variants || product.inventory || [];
+      const totalStock = variants.reduce((sum, v) => sum + (v.stock || 0), 0);
+      
+      await db.collection('products').updateOne(
+        { _id: product._id },
+        { $set: { stock: totalStock } }
+      );
+    }
+
+    res.json({
+      message: 'Stock updated',
+      sku,
+      stock
+    });
+  } catch (error) {
+    console.error('Admin update SKU stock error:', error);
+    res.status(500).json({ error: 'Failed to update stock' });
+  }
+});
+
+/**
  * GET /api/admin/products/:id/inventory
  * Get inventory matrix for a product
  */
@@ -607,20 +756,24 @@ router.get('/products/:id/inventory', async (req, res) => {
 
     const product = await db.collection('products').findOne(
       { _id: toObjectId(id) },
-      { projection: { name: 1, inventory: 1, stock: 1, sizes: 1, colors: 1 } }
+      { projection: { name: 1, variants: 1, inventory: 1, stock: 1, sizes: 1, colors: 1, metadata: 1 } }
     );
 
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
 
+    const variants = product.variants || product.inventory || [];
+
     res.json({
       id: product._id.toString(),
       name: product.name,
       totalStock: product.stock,
-      inventory: product.inventory || [],
+      variants,
+      inventory: variants, // backwards compatibility
       sizes: product.sizes || [],
-      colors: product.colors || []
+      colors: product.colors || [],
+      metadata: product.metadata || {}
     });
   } catch (error) {
     console.error('Admin inventory error:', error);
@@ -630,32 +783,73 @@ router.get('/products/:id/inventory', async (req, res) => {
 
 /**
  * PATCH /api/admin/products/:id/inventory
- * Update inventory for a specific variant
+ * Update inventory for a specific variant (by size+color or SKU)
  */
 router.patch('/products/:id/inventory', async (req, res) => {
   try {
     const db = getDB();
     const { id } = req.params;
-    const { size, color, stock } = req.body;
+    const { sku, size, color, stock } = req.body;
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({ error: 'Invalid product ID' });
     }
 
-    if (stock < 0) {
-      return res.status(400).json({ error: 'Stock cannot be negative' });
+    if (typeof stock !== 'number' || stock < 0) {
+      return res.status(400).json({ error: 'Stock must be a non-negative number' });
     }
 
-    // Update the specific variant in the inventory array
-    const result = await db.collection('products').updateOne(
-      { _id: toObjectId(id), 'inventory.size': size, 'inventory.color': color },
-      { 
-        $set: { 
-          'inventory.$.stock': stock,
-          updatedAt: new Date()
+    let result;
+    
+    // If SKU provided, use it for targeting
+    if (sku) {
+      result = await db.collection('products').updateOne(
+        { _id: toObjectId(id), 'variants.sku': sku },
+        { 
+          $set: { 
+            'variants.$.stock': stock,
+            updatedAt: new Date()
+          }
         }
+      );
+      
+      // Fallback to inventory array
+      if (result.matchedCount === 0) {
+        result = await db.collection('products').updateOne(
+          { _id: toObjectId(id), 'inventory.sku': sku },
+          { 
+            $set: { 
+              'inventory.$.stock': stock,
+              updatedAt: new Date()
+            }
+          }
+        );
       }
-    );
+    } else {
+      // Use size + color for targeting (legacy)
+      result = await db.collection('products').updateOne(
+        { _id: toObjectId(id), 'variants.size': size, 'variants.color': color },
+        { 
+          $set: { 
+            'variants.$.stock': stock,
+            updatedAt: new Date()
+          }
+        }
+      );
+      
+      // Fallback to inventory array
+      if (result.matchedCount === 0) {
+        result = await db.collection('products').updateOne(
+          { _id: toObjectId(id), 'inventory.size': size, 'inventory.color': color },
+          { 
+            $set: { 
+              'inventory.$.stock': stock,
+              updatedAt: new Date()
+            }
+          }
+        );
+      }
+    }
 
     if (result.matchedCount === 0) {
       return res.status(404).json({ error: 'Variant not found' });
@@ -663,7 +857,8 @@ router.patch('/products/:id/inventory', async (req, res) => {
 
     // Recalculate total stock
     const product = await db.collection('products').findOne({ _id: toObjectId(id) });
-    const totalStock = product.inventory.reduce((sum, v) => sum + v.stock, 0);
+    const variants = product.variants || product.inventory || [];
+    const totalStock = variants.reduce((sum, v) => sum + (v.stock || 0), 0);
     
     await db.collection('products').updateOne(
       { _id: toObjectId(id) },
@@ -672,7 +867,7 @@ router.patch('/products/:id/inventory', async (req, res) => {
 
     res.json({
       message: 'Inventory updated',
-      variant: { size, color, stock },
+      variant: { sku, size, color, stock },
       totalStock
     });
   } catch (error) {
