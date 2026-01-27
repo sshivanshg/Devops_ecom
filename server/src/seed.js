@@ -19,23 +19,57 @@ const STYLES = {
 };
 
 /**
- * Generate inventory matrix from sizes and colors
- * Each variant has its own stock count
+ * Generate variants array from sizes and colors
+ * Each variant has unique SKU and individual stock tracking
+ * This is the industry-standard approach for fashion e-commerce
  */
-function generateInventory(sizes, colors, baseStock = 10) {
-  const inventory = [];
+function generateVariants(slug, sizes, colors, baseStock = 10) {
+  const variants = [];
   for (const size of sizes) {
     for (const color of colors) {
-      inventory.push({
+      const sku = `${slug.toUpperCase().substring(0, 3)}-${size}-${color.name.toUpperCase().replace(/\s/g, '').substring(0, 3)}`;
+      variants.push({
+        sku,
         size,
         color: color.name,
         colorValue: color.value,
         stock: Math.floor(Math.random() * baseStock) + 5, // 5-15 units
-        sku: `${size}-${color.name.toUpperCase().replace(/\s/g, '')}`
+        price: null, // null = use base price, or set variant-specific price
       });
     }
   }
-  return inventory;
+  return variants;
+}
+
+/**
+ * Generate product metadata
+ */
+function generateMetadata(category) {
+  const fabricOptions = {
+    'Outerwear': ['100% Italian Virgin Wool', '80% Wool, 20% Cashmere', '100% Cotton Canvas'],
+    'Tops': ['100% Organic Cotton', '70% Cotton, 30% Silk', '100% Linen'],
+    'Bottoms': ['98% Cotton, 2% Elastane', '100% Linen', '100% Tropical Wool'],
+    'Knitwear': ['100% Cashmere', '100% Merino Wool', '50% Wool, 50% Alpaca'],
+    'Accessories': ['100% Italian Leather', '100% Silk', 'Canvas with Leather Trim'],
+  };
+  
+  const fitOptions = ['Relaxed', 'Regular', 'Slim', 'Oversized', 'Tailored'];
+  
+  const careOptions = [
+    'Dry clean only',
+    'Machine wash cold, hang dry',
+    'Hand wash recommended',
+    'Professional leather care only',
+  ];
+
+  const fabrics = fabricOptions[category] || fabricOptions['Tops'];
+  
+  return {
+    fabric: fabrics[Math.floor(Math.random() * fabrics.length)],
+    fitType: fitOptions[Math.floor(Math.random() * fitOptions.length)],
+    careInstructions: careOptions[Math.floor(Math.random() * careOptions.length)],
+    madeIn: ['Italy', 'Portugal', 'Japan', 'USA'][Math.floor(Math.random() * 4)],
+  };
 }
 
 // Luxury product data
@@ -427,24 +461,28 @@ async function seed() {
       console.log(`   ✓ ${userData.email} (${userData.role}) - ID: ${result.insertedId}`);
     }
 
-    // Create products with inventory matrix
-    console.log('\n📦 Creating products with inventory...');
+    // Create products with variants (industry-standard schema)
+    console.log('\n📦 Creating products with variants...');
     const createdProducts = [];
     for (const product of products) {
-      // Generate inventory matrix for each product
-      const inventory = generateInventory(product.sizes, product.colors);
-      const totalStock = inventory.reduce((sum, v) => sum + v.stock, 0);
+      // Generate variants array for each product
+      const variants = generateVariants(product.slug, product.sizes, product.colors);
+      const totalStock = variants.reduce((sum, v) => sum + v.stock, 0);
+      const metadata = generateMetadata(product.category);
       
       const result = await db.collection('products').insertOne({
         ...product,
-        inventory,
+        variants, // New: variants array with SKU, size, color, stock
+        inventory: variants, // Keep for backwards compatibility
+        metadata, // New: fabric, fitType, careInstructions, madeIn
         stock: totalStock, // Total across all variants
+        status: product.status || 'published', // draft or published
         publishAt: product.publishAt || null, // Scheduled publishing
         createdAt: new Date(),
         updatedAt: new Date()
       });
-      createdProducts.push({ ...product, _id: result.insertedId, inventory });
-      console.log(`   ✓ ${product.name} ($${product.price}) - ${inventory.length} variants, ${totalStock} total stock`);
+      createdProducts.push({ ...product, _id: result.insertedId, variants });
+      console.log(`   ✓ ${product.name} ($${product.price}) - ${variants.length} variants, ${totalStock} total stock`);
     }
 
     // Add some items to cart for demo user

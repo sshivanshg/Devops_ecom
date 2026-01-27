@@ -13,6 +13,7 @@ const usersRouter = require('./routes/users');
 const authRouter = require('./routes/auth');
 const adminRouter = require('./routes/admin');
 const configRouter = require('./routes/config');
+const mediaRouter = require('./routes/media');
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/config', configRouter);
 app.use('/api/settings', configRouter); // Alias for site settings
+app.use('/api/media', mediaRouter); // Cloudinary image management
 
 // Root Route
 app.get('/', (req, res) => {
@@ -63,7 +65,8 @@ app.get('/', (req, res) => {
       users: '/api/users',
       auth: '/api/auth',
       admin: '/api/admin (protected)',
-      config: '/api/config'
+      config: '/api/config',
+      media: '/api/media (protected - Cloudinary)'
     }
   });
 });
