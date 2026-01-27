@@ -18,11 +18,21 @@ const mediaRouter = require('./routes/media');
 const app = express();
 
 // Middleware
+// CORS: allow deployed frontend + localhost for development/testing
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.FRONTEND_URL 
-    : 'http://localhost:5173',
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow non-browser requests (no origin) and any allowed origin
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
 }));
 app.use(express.json());
 
