@@ -7,7 +7,8 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 
 const AuthContext = createContext(null);
 
-const API_BASE = '/api';
+// Use same base as API client, falling back to deployed backend URL
+const API_BASE = import.meta.env.VITE_API_URL || 'https://devops-ecom.onrender.com';
 const TOKEN_KEY = 'atelier_token';
 const USER_KEY = 'atelier_user';
 
