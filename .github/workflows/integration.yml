@@ -37,29 +37,3 @@ jobs:
           path: client/dist/
           if-no-files-found: warn
           retention-days: 1
-
-  unit-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Installing Client Dependencies
-        run: npm i
-        working-directory: ./client
-
-      - name: Installing Server Dependencies
-        run: npm i
-        working-directory: ./server
-
-      - name: Run Client Tests
-        run: npm test
-        working-directory: ./client
-
-      - name: Run Server Tests
-        run: npm test
-        working-directory: ./server

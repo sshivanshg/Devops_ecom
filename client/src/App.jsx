@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Navbar } from "./components/layout/Navbar";
 import { Footer } from "./components/layout/Footer";
 import { HomePage } from "./pages/HomePage";
@@ -40,9 +40,13 @@ function AdminRoute({ children }) {
  * Features routing for Home, Shop, Product Detail, and Admin pages
  */
 function AppContent() {
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Navbar />
+      {/* Hide Navbar on admin routes */}
+      {!isAdminRoute && <Navbar />}
       
       <Routes>
         <Route path="/" element={<HomePage />} />
@@ -61,10 +65,11 @@ function AppContent() {
         />
       </Routes>
 
-      <Footer />
+      {/* Hide Footer on admin routes */}
+      {!isAdminRoute && <Footer />}
       
-      {/* Newsletter Exit-Intent Popup */}
-      <NewsletterPopup />
+      {/* Newsletter Exit-Intent Popup (only on public routes) */}
+      {!isAdminRoute && <NewsletterPopup />}
     </div>
   );
 }
