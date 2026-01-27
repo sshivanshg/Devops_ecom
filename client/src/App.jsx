@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { Navbar } from "./components/layout/Navbar";
 import { Footer } from "./components/layout/Footer";
-import { PromoBanner } from "./components/layout/PromoBanner";
 import { HomePage } from "./pages/HomePage";
 import { ShopPage } from "./pages/ShopPage";
 import { ProductDetailPage } from "./pages/ProductDetailPage";
@@ -43,7 +42,6 @@ function AdminRoute({ children }) {
 function AppContent() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <PromoBanner />
       <Navbar />
       
       <Routes>
