@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye, ShoppingBag } from "lucide-react";
+import { Eye, ShoppingBag, Sparkles, Info } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
@@ -15,10 +15,12 @@ import {
 
 /**
  * ProductCard component with hover image transitions and quick view.
+ * Supports personalization with matchReason tooltip.
  */
-export function ProductCard({ product, index = 0 }) {
+export function ProductCard({ product, index = 0, showMatchReason = false }) {
   const [isHovered, setIsHovered] = useState(false);
   const [selectedSize, setSelectedSize] = useState(null);
+  const [showTooltip, setShowTooltip] = useState(false);
 
   const statusVariant = {
     new: "new",
@@ -36,7 +38,7 @@ export function ProductCard({ product, index = 0 }) {
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: index * 0.1 }}
-      className="group"
+      className="group relative"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -68,6 +70,48 @@ export function ProductCard({ product, index = 0 }) {
               {product.status === "limited" && "Limited Edition"}
               {product.status === "sale" && `${discountPercent}% Off`}
             </Badge>
+          </div>
+        )}
+
+        {/* "Why this?" Personalization Badge */}
+        {showMatchReason && product.matchReason && (
+          <div 
+            className="absolute top-4 right-4 z-10"
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
+          >
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              className="w-7 h-7 rounded-full bg-emerald-500/90 backdrop-blur-sm flex items-center justify-center"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-white" />
+            </motion.button>
+
+            {/* Tooltip */}
+            <AnimatePresence>
+              {showTooltip && (
+                <motion.div
+                  initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                  className="absolute right-0 top-full mt-2 w-48 p-3 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl z-20"
+                >
+                  <p className="text-xs text-emerald-400 font-medium mb-1">
+                    Why this?
+                  </p>
+                  <p className="text-xs text-zinc-300">
+                    {product.matchReason}
+                  </p>
+                  {product.matchScore && (
+                    <div className="mt-2 pt-2 border-t border-zinc-700">
+                      <p className="text-[10px] text-zinc-500">
+                        Match score: {product.matchScore}
+                      </p>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 

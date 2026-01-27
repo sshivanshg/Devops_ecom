@@ -6,6 +6,10 @@ import {
   User,
   Menu,
   ChevronDown,
+  Crown,
+  LogOut,
+  Settings,
+  Shield,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/Button";
@@ -24,6 +28,8 @@ import {
 } from "../ui/Sheet";
 import { Input } from "../ui/Input";
 import { CartTrigger } from "../cart/CartSheet";
+import { useAuth } from "../../contexts/AuthContext";
+import { AuthModal } from "../personalization/AuthModal";
 
 const navLinks = [
   { name: "New Arrivals", href: "/shop?status=new", hasMegaMenu: true },
@@ -80,12 +86,16 @@ const megaMenuContent = {
 /**
  * Dynamic Navbar component with scroll effects and mega-menu.
  * Transitions from transparent to opaque on scroll.
+ * Includes auth state and role-based menu items.
  */
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [activeMegaMenu, setActiveMegaMenu] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const navigate = useNavigate();
+  const { user, isAuthenticated, isVIP, isAdmin, logout } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -100,6 +110,11 @@ export function Navbar() {
     navigate(href);
   };
 
+  const handleLogout = () => {
+    logout();
+    setShowUserMenu(false);
+  };
+
   return (
     <>
       <motion.header
@@ -112,7 +127,10 @@ export function Navbar() {
             ? "bg-zinc-900/95 backdrop-blur-md border-b border-white/5"
             : "bg-transparent"
         )}
-        onMouseLeave={() => setActiveMegaMenu(null)}
+        onMouseLeave={() => {
+          setActiveMegaMenu(null);
+          setShowUserMenu(false);
+        }}
       >
         <div className="container">
           <nav className="flex items-center justify-between h-20">
@@ -202,15 +220,100 @@ export function Navbar() {
                 </DialogContent>
               </Dialog>
 
-              {/* User */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="hidden sm:flex"
-                aria-label="Account"
+              {/* User Menu */}
+              <div 
+                className="relative hidden sm:block"
+                onMouseEnter={() => setShowUserMenu(true)}
+                onMouseLeave={() => setShowUserMenu(false)}
               >
-                <User className="w-5 h-5" />
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Account"
+                  onClick={() => !isAuthenticated && setShowAuthModal(true)}
+                  className={cn(
+                    isVIP() && "text-amber-400 hover:text-amber-300"
+                  )}
+                >
+                  {isVIP() ? (
+                    <Crown className="w-5 h-5" />
+                  ) : (
+                    <User className="w-5 h-5" />
+                  )}
+                </Button>
+
+                {/* User Dropdown */}
+                <AnimatePresence>
+                  {showUserMenu && isAuthenticated && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-full mt-2 w-64 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl overflow-hidden"
+                    >
+                      {/* User Info */}
+                      <div className="p-4 border-b border-zinc-800">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-10 h-10 rounded-full flex items-center justify-center",
+                            isVIP() 
+                              ? "bg-gradient-to-br from-amber-500 to-yellow-500" 
+                              : isAdmin()
+                              ? "bg-gradient-to-br from-indigo-500 to-purple-500"
+                              : "bg-zinc-700"
+                          )}>
+                            {isVIP() ? (
+                              <Crown className="w-5 h-5 text-zinc-900" />
+                            ) : isAdmin() ? (
+                              <Shield className="w-5 h-5 text-white" />
+                            ) : (
+                              <User className="w-5 h-5 text-zinc-300" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-medium text-zinc-100">{user?.name}</p>
+                            <p className="text-xs text-zinc-400">{user?.email}</p>
+                          </div>
+                        </div>
+                        {user?.role && (
+                          <div className="mt-3">
+                            <span className={cn(
+                              "text-xs px-2 py-1 rounded-full",
+                              user.role === 'VIP' && "bg-amber-500/20 text-amber-400",
+                              user.role === 'ADMIN' && "bg-indigo-500/20 text-indigo-400",
+                              user.role === 'USER' && "bg-zinc-700 text-zinc-300"
+                            )}>
+                              {user.role}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Menu Items */}
+                      <div className="p-2">
+                        {isAdmin() && (
+                          <Link
+                            to="/admin"
+                            className="flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 rounded-md transition-colors"
+                            onClick={() => setShowUserMenu(false)}
+                          >
+                            <Settings className="w-4 h-4" />
+                            Admin Dashboard
+                          </Link>
+                        )}
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Sign Out
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
               {/* Cart */}
               <CartTrigger />
@@ -281,6 +384,27 @@ export function Navbar() {
             <SheetTitle className="font-serif text-2xl">ATELIER</SheetTitle>
           </SheetHeader>
           <nav className="flex flex-col gap-1 p-6">
+            {isAuthenticated && (
+              <div className="pb-4 mb-4 border-b border-zinc-800">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-10 h-10 rounded-full flex items-center justify-center",
+                    isVIP() ? "bg-amber-500" : "bg-zinc-700"
+                  )}>
+                    {isVIP() ? (
+                      <Crown className="w-5 h-5 text-zinc-900" />
+                    ) : (
+                      <User className="w-5 h-5 text-zinc-300" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium">{user?.name}</p>
+                    <p className="text-xs text-zinc-400">{user?.role}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {navLinks.map((link) => (
               <Link
                 key={link.name}
@@ -291,9 +415,44 @@ export function Navbar() {
                 {link.name}
               </Link>
             ))}
+
+            {isAdmin() && (
+              <Link
+                to="/admin"
+                className="py-3 text-lg border-b border-border/50 text-indigo-400 hover:text-indigo-300 transition-colors"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Admin Dashboard
+              </Link>
+            )}
+
+            {isAuthenticated ? (
+              <button
+                onClick={() => {
+                  handleLogout();
+                  setIsMobileMenuOpen(false);
+                }}
+                className="py-3 text-lg text-red-400 text-left"
+              >
+                Sign Out
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setShowAuthModal(true);
+                }}
+                className="py-3 text-lg text-emerald-400 text-left"
+              >
+                Sign In
+              </button>
+            )}
           </nav>
         </SheetContent>
       </Sheet>
+
+      {/* Auth Modal */}
+      <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
     </>
   );
 }
