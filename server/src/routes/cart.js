@@ -1,71 +1,60 @@
 /**
  * Cart API Routes
- * Handles shopping cart operations
- * 
- * Note: All IDs are MongoDB ObjectIds (24-char hex strings)
+ * Handles shopping cart operations using native MongoDB
  */
 
 const express = require('express');
-const prisma = require('../lib/prisma');
-const { isValidObjectId } = require('../lib/validators');
+const { getDB, isValidObjectId, toObjectId } = require('../lib/mongodb');
+const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
 /**
  * GET /api/cart
- * Fetch all cart items for a user
- * Query param: userId (required, ObjectId string)
+ * Get user's cart items with product details
+ * Requires: Bearer token
  */
-router.get('/', async (req, res) => {
+router.get('/', authenticate, async (req, res) => {
   try {
-    const { userId } = req.query;
+    const db = getDB();
+    const userId = req.user._id;
 
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
+    // Get cart items
+    const cartItems = await db.collection('cartItems')
+      .find({ userId: toObjectId(userId) })
+      .toArray();
 
-    if (!isValidObjectId(userId)) {
-      return res.status(400).json({ error: 'Invalid userId format' });
-    }
+    // Get product details for each cart item
+    const productIds = cartItems.map(item => item.productId);
+    const products = await db.collection('products')
+      .find({ _id: { $in: productIds } })
+      .toArray();
 
-    const cartItems = await prisma.cartItem.findMany({
-      where: { userId },
-      include: {
-        product: true
-      },
-      orderBy: { createdAt: 'desc' }
+    // Create a map for quick lookup
+    const productMap = {};
+    products.forEach(p => {
+      productMap[p._id.toString()] = p;
     });
 
-    // Parse product JSON fields and format response
-    const formattedItems = cartItems.map(item => ({
-      id: item.id,  // String (ObjectId)
-      quantity: item.quantity,
-      size: item.size,
-      color: JSON.parse(item.color),
-      product: {
-        ...item.product,
-        images: JSON.parse(item.product.images),
-        colors: JSON.parse(item.product.colors),
-        details: JSON.parse(item.product.details),
-        sizes: item.product.sizes.split(',')
-      }
-    }));
+    // Combine cart items with product data
+    const itemsWithProducts = cartItems.map(item => {
+      const product = productMap[item.productId.toString()];
+      return {
+        id: item._id.toString(),
+        quantity: item.quantity,
+        size: item.size,
+        color: item.color,
+        product: product ? {
+          id: product._id.toString(),
+          name: product.name,
+          price: product.price,
+          images: product.images,
+          slug: product.slug,
+        } : null
+      };
+    }).filter(item => item.product !== null);
 
-    // Calculate totals
-    const subtotal = formattedItems.reduce(
-      (sum, item) => sum + item.product.price * item.quantity, 
-      0
-    );
-    const itemCount = formattedItems.reduce(
-      (sum, item) => sum + item.quantity, 
-      0
-    );
-
-    res.json({
-      items: formattedItems,
-      subtotal,
-      itemCount
-    });
+    res.json(itemsWithProducts);
   } catch (error) {
     console.error('Error fetching cart:', error);
     res.status(500).json({ error: 'Failed to fetch cart' });
@@ -74,76 +63,84 @@ router.get('/', async (req, res) => {
 
 /**
  * POST /api/cart
- * Add item to cart (upsert - increases quantity if item exists)
- * Body: { userId, productId, quantity, size, color }
- * 
- * Note: userId and productId must be valid ObjectId strings
+ * Add item to cart or update quantity if exists
+ * Requires: Bearer token
+ * Body: { productId, quantity, size, color }
  */
-router.post('/', async (req, res) => {
+router.post('/', authenticate, async (req, res) => {
   try {
-    const { userId, productId, quantity = 1, size, color } = req.body;
+    const db = getDB();
+    const userId = req.user._id;
+    const { productId, quantity = 1, size, color } = req.body;
 
-    // Validate required fields
-    if (!userId || !productId || !size || !color) {
+    if (!productId || !size || !color) {
       return res.status(400).json({ 
-        error: 'userId, productId, size, and color are required' 
+        error: 'productId, size, and color are required' 
       });
     }
 
-    // Validate ObjectId formats
-    if (!isValidObjectId(userId)) {
-      return res.status(400).json({ error: 'Invalid userId format' });
-    }
     if (!isValidObjectId(productId)) {
-      return res.status(400).json({ error: 'Invalid productId format' });
+      return res.status(400).json({ error: 'Invalid productId' });
     }
 
     // Check if product exists
-    const product = await prisma.product.findUnique({
-      where: { id: productId }
+    const product = await db.collection('products').findOne({ 
+      _id: toObjectId(productId) 
     });
 
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    // Serialize color for comparison
-    const colorString = typeof color === 'string' ? color : JSON.stringify(color);
-
-    // Upsert cart item
-    const cartItem = await prisma.cartItem.upsert({
-      where: {
-        userId_productId_size_color: {
-          userId,
-          productId,
-          size,
-          color: colorString
-        }
-      },
-      update: {
-        quantity: { increment: quantity }
-      },
-      create: {
-        userId,
-        productId,
-        quantity,
-        size,
-        color: colorString
-      },
-      include: {
-        product: true
-      }
+    // Check if item already in cart
+    const existingItem = await db.collection('cartItems').findOne({
+      userId: toObjectId(userId),
+      productId: toObjectId(productId),
+      size,
+      'color.name': typeof color === 'object' ? color.name : color
     });
+
+    if (existingItem) {
+      // Update quantity
+      await db.collection('cartItems').updateOne(
+        { _id: existingItem._id },
+        { 
+          $inc: { quantity },
+          $set: { updatedAt: new Date() }
+        }
+      );
+
+      const updatedItem = await db.collection('cartItems').findOne({ 
+        _id: existingItem._id 
+      });
+
+      return res.json({
+        message: 'Cart item updated',
+        item: {
+          id: updatedItem._id.toString(),
+          ...updatedItem
+        }
+      });
+    }
+
+    // Create new cart item
+    const newItem = {
+      userId: toObjectId(userId),
+      productId: toObjectId(productId),
+      quantity,
+      size,
+      color: typeof color === 'object' ? color : { name: color, value: color },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const result = await db.collection('cartItems').insertOne(newItem);
 
     res.status(201).json({
       message: 'Item added to cart',
       item: {
-        ...cartItem,
-        color: JSON.parse(cartItem.color),
-        product: {
-          ...cartItem.product,
-          images: JSON.parse(cartItem.product.images)
-        }
+        id: result.insertedId.toString(),
+        ...newItem
       }
     });
   } catch (error) {
@@ -155,92 +152,96 @@ router.post('/', async (req, res) => {
 /**
  * PATCH /api/cart/:itemId
  * Update cart item quantity
+ * Requires: Bearer token
  * Body: { quantity }
- * 
- * Note: itemId must be a valid ObjectId string
  */
-router.patch('/:itemId', async (req, res) => {
+router.patch('/:itemId', authenticate, async (req, res) => {
   try {
+    const db = getDB();
+    const userId = req.user._id;
     const { itemId } = req.params;
     const { quantity } = req.body;
 
     if (!isValidObjectId(itemId)) {
-      return res.status(400).json({ error: 'Invalid itemId format' });
+      return res.status(400).json({ error: 'Invalid itemId' });
     }
 
     if (typeof quantity !== 'number' || quantity < 1) {
-      return res.status(400).json({ error: 'Valid quantity is required' });
+      return res.status(400).json({ error: 'quantity must be a positive number' });
     }
 
-    const cartItem = await prisma.cartItem.update({
-      where: { id: itemId },
-      data: { quantity },
-      include: { product: true }
-    });
+    // Find and update the cart item
+    const result = await db.collection('cartItems').findOneAndUpdate(
+      { 
+        _id: toObjectId(itemId),
+        userId: toObjectId(userId)
+      },
+      { 
+        $set: { quantity, updatedAt: new Date() }
+      },
+      { returnDocument: 'after' }
+    );
+
+    if (!result) {
+      return res.status(404).json({ error: 'Cart item not found' });
+    }
 
     res.json({
-      message: 'Cart updated',
+      message: 'Cart item updated',
       item: {
-        ...cartItem,
-        color: JSON.parse(cartItem.color)
+        id: result._id.toString(),
+        ...result
       }
     });
   } catch (error) {
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Cart item not found' });
-    }
-    console.error('Error updating cart:', error);
-    res.status(500).json({ error: 'Failed to update cart' });
+    console.error('Error updating cart item:', error);
+    res.status(500).json({ error: 'Failed to update cart item' });
   }
 });
 
 /**
  * DELETE /api/cart/:itemId
  * Remove item from cart
- * 
- * Note: itemId must be a valid ObjectId string
+ * Requires: Bearer token
  */
-router.delete('/:itemId', async (req, res) => {
+router.delete('/:itemId', authenticate, async (req, res) => {
   try {
+    const db = getDB();
+    const userId = req.user._id;
     const { itemId } = req.params;
 
     if (!isValidObjectId(itemId)) {
-      return res.status(400).json({ error: 'Invalid itemId format' });
+      return res.status(400).json({ error: 'Invalid itemId' });
     }
 
-    await prisma.cartItem.delete({
-      where: { id: itemId }
+    const result = await db.collection('cartItems').deleteOne({
+      _id: toObjectId(itemId),
+      userId: toObjectId(userId)
     });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'Cart item not found' });
+    }
 
     res.json({ message: 'Item removed from cart' });
   } catch (error) {
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Cart item not found' });
-    }
-    console.error('Error removing from cart:', error);
-    res.status(500).json({ error: 'Failed to remove item from cart' });
+    console.error('Error removing cart item:', error);
+    res.status(500).json({ error: 'Failed to remove cart item' });
   }
 });
 
 /**
  * DELETE /api/cart
- * Clear entire cart for a user
- * Query param: userId (required, ObjectId string)
+ * Clear entire cart
+ * Requires: Bearer token
  */
-router.delete('/', async (req, res) => {
+router.delete('/', authenticate, async (req, res) => {
   try {
-    const { userId } = req.query;
+    const db = getDB();
+    const userId = req.user._id;
 
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
-
-    if (!isValidObjectId(userId)) {
-      return res.status(400).json({ error: 'Invalid userId format' });
-    }
-
-    await prisma.cartItem.deleteMany({
-      where: { userId }
+    await db.collection('cartItems').deleteMany({
+      userId: toObjectId(userId)
     });
 
     res.json({ message: 'Cart cleared' });

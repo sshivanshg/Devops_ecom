@@ -1,157 +1,96 @@
 /**
- * User API Routes
- * Handles user authentication and profile
- * 
- * Note: All IDs are MongoDB ObjectIds (24-char hex strings)
+ * User API Routes (Legacy - use /api/auth for auth)
+ * Kept for backwards compatibility
  */
 
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const prisma = require('../lib/prisma');
-const { isValidObjectId } = require('../lib/validators');
+const { getDB, isValidObjectId, toObjectId } = require('../lib/mongodb');
 
 const router = express.Router();
 
 /**
- * POST /api/users/register
- * Register a new user
- * Body: { email, password, name }
+ * GET /api/users/:id
+ * Get user by ID (public profile)
  */
-router.post('/register', async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
+    const db = getDB();
+    const { id } = req.params;
+
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    const user = await db.collection('users').findOne(
+      { _id: toObjectId(id) },
+      { projection: { password: 0 } }
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      id: user._id.toString(),
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      createdAt: user.createdAt,
+    });
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
+/**
+ * POST /api/users (Legacy register endpoint)
+ * Use /api/auth/register instead
+ */
+router.post('/', async (req, res) => {
+  try {
+    const db = getDB();
     const { email, password, name } = req.body;
 
-    // Validate required fields
     if (!email || !password || !name) {
       return res.status(400).json({ 
         error: 'email, password, and name are required' 
       });
     }
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    });
+    const existingUser = await db.collection('users').findOne({ email });
 
     if (existingUser) {
       return res.status(409).json({ error: 'Email already registered' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name
-      },
-      select: {
-        id: true,  // ObjectId string
-        email: true,
-        name: true,
-        createdAt: true
-      }
-    });
+    const newUser = {
+      email,
+      password: hashedPassword,
+      name,
+      role: 'USER',
+      preferences: null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const result = await db.collection('users').insertOne(newUser);
 
     res.status(201).json({
-      message: 'User registered successfully',
-      user
-    });
-  } catch (error) {
-    console.error('Error registering user:', error);
-    res.status(500).json({ error: 'Failed to register user' });
-  }
-});
-
-/**
- * POST /api/users/login
- * Authenticate user
- * Body: { email, password }
- * 
- * Returns user object with id (ObjectId string)
- */
-router.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // Validate required fields
-    if (!email || !password) {
-      return res.status(400).json({ 
-        error: 'email and password are required' 
-      });
-    }
-
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email }
-    });
-
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-
-    if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // Return user data (in a real app, you'd return a JWT token)
-    res.json({
-      message: 'Login successful',
+      message: 'User created successfully',
       user: {
-        id: user.id,  // ObjectId string
-        email: user.email,
-        name: user.name
+        id: result.insertedId.toString(),
+        email: newUser.email,
+        name: newUser.name,
+        role: newUser.role,
       }
     });
   } catch (error) {
-    console.error('Error logging in:', error);
-    res.status(500).json({ error: 'Failed to login' });
-  }
-});
-
-/**
- * GET /api/users/:userId
- * Get user profile
- * 
- * Note: userId must be a valid ObjectId string
- */
-router.get('/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    if (!isValidObjectId(userId)) {
-      return res.status(400).json({ error: 'Invalid userId format' });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,  // ObjectId string
-        email: true,
-        name: true,
-        createdAt: true,
-        _count: {
-          select: {
-            orders: true,
-            cartItems: true
-          }
-        }
-      }
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json(user);
-  } catch (error) {
-    console.error('Error fetching user:', error);
-    res.status(500).json({ error: 'Failed to fetch user' });
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: 'Failed to create user' });
   }
 });
 

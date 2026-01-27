@@ -1,56 +1,82 @@
 /**
  * Product API Routes
- * Handles all product-related endpoints
- * 
- * Note: All IDs are MongoDB ObjectIds (24-char hex strings)
+ * Handles all product-related endpoints using native MongoDB
  */
 
 const express = require('express');
-const prisma = require('../lib/prisma');
-const { isValidObjectId } = require('../lib/validators');
+const { getDB, isValidObjectId, toObjectId } = require('../lib/mongodb');
+const { optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
 /**
  * GET /api/products
- * Fetch all products with optional filters
- * Query params: featured, category, status
+ * Fetch all ACTIVE products with optional filters
+ * Query params: featured, category, status, style
+ * Note: Only shows isActive:true products (admin sees all via /api/admin/products)
  */
-router.get('/', async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
-    const { featured, category, status } = req.query;
+    const db = getDB();
+    const { featured, category, status, style, recommended } = req.query;
 
-    // Build filter conditions
-    const where = {};
+    // Build filter - ALWAYS filter for active products on public route
+    // Also filter out scheduled products that haven't reached their publish date
+    const filter = { 
+      isActive: { $ne: false },
+      $or: [
+        { publishAt: null },
+        { publishAt: { $exists: false } },
+        { publishAt: { $lte: new Date() } }
+      ]
+    };
     
     if (featured === 'true') {
-      where.isFeatured = true;
+      filter.isFeatured = true;
     }
     
     if (category) {
-      where.category = category;
+      filter.category = category;
     }
     
     if (status) {
-      where.status = status;
+      filter.status = status;
     }
 
-    const products = await prisma.product.findMany({
-      where,
-      orderBy: { createdAt: 'desc' }
-    });
+    let products = await db.collection('products')
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .toArray();
 
-    // Parse JSON fields for each product
-    const parsedProducts = products.map(product => ({
-      ...product,
-      images: JSON.parse(product.images),
-      colors: JSON.parse(product.colors),
-      details: JSON.parse(product.details),
-      sizes: product.sizes.split(','),
-      hoverImage: JSON.parse(product.images)[1] || JSON.parse(product.images)[0]
+    // Add hover image
+    products = products.map(p => ({
+      ...p,
+      id: p._id.toString(),
+      hoverImage: p.images?.[1] || p.images?.[0]
     }));
 
-    res.json(parsedProducts);
+    // Filter by style preference (for personalization)
+    if (style) {
+      products = products.filter(p => 
+        p.styles && p.styles.includes(style)
+      );
+    }
+
+    // Personalized "Recommended for You" based on user preferences
+    if (recommended === 'true' && req.user?.preferences) {
+      const prefs = req.user.preferences;
+      const favoriteStyle = prefs.favoriteStyle;
+      
+      if (favoriteStyle) {
+        products = products.sort((a, b) => {
+          const aMatch = a.styles?.includes(favoriteStyle) ? 1 : 0;
+          const bMatch = b.styles?.includes(favoriteStyle) ? 1 : 0;
+          return bMatch - aMatch;
+        });
+      }
+    }
+
+    res.json(products);
   } catch (error) {
     console.error('Error fetching products:', error);
     res.status(500).json({ error: 'Failed to fetch products' });
@@ -58,30 +84,48 @@ router.get('/', async (req, res) => {
 });
 
 /**
- * GET /api/products/:idOrSlug
- * Fetch a single product by ID (ObjectId) or slug
- * 
- * Note: This route accepts both MongoDB ObjectIds and slugs
- * - If 24-char hex string, tries to find by ID first
- * - Otherwise, looks up by slug
+ * GET /api/products/recommended
+ * Get personalized product recommendations using aggregation pipeline
  */
-router.get('/:idOrSlug', async (req, res) => {
+router.get('/recommended', optionalAuth, async (req, res) => {
   try {
+    const { getRecommendedProducts } = require('../lib/recommendations');
+    
+    const userId = req.user?._id || null;
+    const result = await getRecommendedProducts(userId);
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching recommendations:', error);
+    res.status(500).json({ error: 'Failed to fetch recommendations' });
+  }
+});
+
+/**
+ * GET /api/products/:idOrSlug
+ * Fetch a single product by ID or slug
+ * 
+ * PREVIEW MODE: If product is inactive or scheduled:
+ * - Admin users can preview the product
+ * - Regular users get a 404
+ */
+router.get('/:idOrSlug', optionalAuth, async (req, res) => {
+  try {
+    const db = getDB();
     const { idOrSlug } = req.params;
     let product = null;
 
-    // Check if it looks like an ObjectId (24-char hex)
+    // Check if it looks like an ObjectId
     if (isValidObjectId(idOrSlug)) {
-      // Try to find by ID first
-      product = await prisma.product.findUnique({
-        where: { id: idOrSlug }
+      product = await db.collection('products').findOne({ 
+        _id: toObjectId(idOrSlug) 
       });
     }
 
-    // If not found by ID (or wasn't an ObjectId), try by slug
+    // If not found by ID, try by slug
     if (!product) {
-      product = await prisma.product.findUnique({
-        where: { slug: idOrSlug }
+      product = await db.collection('products').findOne({ 
+        slug: idOrSlug 
       });
     }
 
@@ -89,17 +133,32 @@ router.get('/:idOrSlug', async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    // Parse JSON fields
-    const parsedProduct = {
+    // Check if product is viewable
+    const isAdmin = req.user?.role === 'ADMIN';
+    const isActive = product.isActive !== false;
+    const isScheduled = product.publishAt && new Date(product.publishAt) > new Date();
+    const isHidden = !isActive || isScheduled;
+
+    // PREVIEW MODE: Only admins can see hidden products
+    if (isHidden && !isAdmin) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // Format response
+    const formattedProduct = {
       ...product,
-      images: JSON.parse(product.images),
-      colors: JSON.parse(product.colors),
-      details: JSON.parse(product.details),
-      sizes: product.sizes.split(','),
-      hoverImage: JSON.parse(product.images)[1] || JSON.parse(product.images)[0]
+      id: product._id.toString(),
+      hoverImage: product.images?.[1] || product.images?.[0],
+      // Add preview metadata for admin
+      ...(isAdmin && isHidden && {
+        _preview: true,
+        _previewReason: !isActive 
+          ? 'Product is inactive' 
+          : `Scheduled for ${new Date(product.publishAt).toLocaleString()}`
+      })
     };
 
-    res.json(parsedProduct);
+    res.json(formattedProduct);
   } catch (error) {
     console.error('Error fetching product:', error);
     res.status(500).json({ error: 'Failed to fetch product' });

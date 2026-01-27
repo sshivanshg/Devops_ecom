@@ -10,6 +10,9 @@ const cors = require('cors');
 const productsRouter = require('./routes/products');
 const cartRouter = require('./routes/cart');
 const usersRouter = require('./routes/users');
+const authRouter = require('./routes/auth');
+const adminRouter = require('./routes/admin');
+const configRouter = require('./routes/config');
 
 const app = express();
 
@@ -43,6 +46,10 @@ app.get('/api/health', (req, res) => {
 app.use('/api/products', productsRouter);
 app.use('/api/cart', cartRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/admin', adminRouter);
+app.use('/api/config', configRouter);
+app.use('/api/settings', configRouter); // Alias for site settings
 
 // Root Route
 app.get('/', (req, res) => {
@@ -53,7 +60,10 @@ app.get('/', (req, res) => {
       health: '/api/health',
       products: '/api/products',
       cart: '/api/cart',
-      users: '/api/users'
+      users: '/api/users',
+      auth: '/api/auth',
+      admin: '/api/admin (protected)',
+      config: '/api/config'
     }
   });
 });
