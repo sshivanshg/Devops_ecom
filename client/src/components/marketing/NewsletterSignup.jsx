@@ -143,7 +143,7 @@ function NewsletterForm({ variant = "default", onSuccess }) {
  */
 export function NewsletterInline() {
   return (
-    <div className="max-w-md">
+    <div className="max-w-md mx-auto">
       <h3 className="font-serif text-2xl mb-2">Stay in the Loop</h3>
       <p className="text-muted-foreground text-sm mb-4">
         Subscribe for exclusive access to new collections, private sales, and
