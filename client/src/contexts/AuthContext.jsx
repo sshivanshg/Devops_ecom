@@ -8,7 +8,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 const AuthContext = createContext(null);
 
 // Use same base as API client, falling back to deployed backend URL
-const API_BASE = `https://devops-ecom.onrender.com`;
+const API_BASE = import.meta.env.VITE_API_URL || 'https://devops-ecom.onrender.com';
 const TOKEN_KEY = 'atelier_token';
 const USER_KEY = 'atelier_user';
 
@@ -47,7 +47,7 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/auth/me`, {
+      const response = await fetch(`${API_BASE}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -81,7 +81,7 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/auth/login`, {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -107,7 +107,7 @@ export function AuthProvider({ children }) {
   const register = async (email, password, name) => {
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/auth/register`, {
+      const response = await fetch(`${API_BASE}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, name })
@@ -140,7 +140,7 @@ export function AuthProvider({ children }) {
   // Update preferences (for Style Quiz)
   const updatePreferences = async (preferences) => {
     try {
-      const response = await fetch(`${API_BASE}/auth/preferences`, {
+      const response = await fetch(`${API_BASE}/api/auth/preferences`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -166,7 +166,7 @@ export function AuthProvider({ children }) {
   // Upgrade to VIP (demo)
   const upgradeToVIP = async () => {
     try {
-      const response = await fetch(`${API_BASE}/auth/upgrade-vip`, {
+      const response = await fetch(`${API_BASE}/api/auth/upgrade-vip`, {
         method: 'POST',
         headers: getAuthHeaders()
       });
