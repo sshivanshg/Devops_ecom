@@ -3,7 +3,6 @@ name: Deploy Simple HTML to EC2
 on:
     push:
         branches:
-            - main
             - lab
         paths:
             - "demo/**"
