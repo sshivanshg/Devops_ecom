@@ -1,0 +1,38 @@
+name: Deploy Simple HTML to EC2
+
+on:
+    push:
+        branches:
+            - main
+            - lab
+        paths:
+            - "demo/**"
+    workflow_dispatch:
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+
+            - name: Copy files to EC2
+              uses: appleboy/scp-action@master
+              with:
+                  host: ${{ secrets.EC2_HOST }}
+                  username: ${{ secrets.EC2_USERNAME }}
+                  key: ${{ secrets.EC2_SSH_KEY }}
+                  port: 22
+                  source: "demo/index.html"
+                  target: "/var/www/html/"
+                  strip_components: 1
+
+            - name: Execute remote ssh commands
+              uses: appleboy/ssh-action@master
+              with:
+                  host: ${{ secrets.EC2_HOST }}
+                  username: ${{ secrets.EC2_USERNAME }}
+                  key: ${{ secrets.EC2_SSH_KEY }}
+                  port: 22
+                  script: |
+                      sudo systemctl restart nginx || echo "Nginx not found, skipping restart"
