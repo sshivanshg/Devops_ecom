@@ -23,7 +23,7 @@ jobs:
                   key: ${{ secrets.EC2_SSH_KEY }}
                   port: 22
                   source: "demo/index.html"
-                  target: "/var/www/html/"
+                  target: "/usr/share/nginx/html/"
                   strip_components: 1
 
             - name: Execute remote ssh commands
