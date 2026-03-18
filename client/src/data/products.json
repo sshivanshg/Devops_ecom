@@ -1,0 +1,238 @@
+[
+  {
+    "id": "1",
+    "slug": "oversized-wool-coat",
+    "name": "Oversized Wool Coat",
+    "price": 580,
+    "originalPrice": null,
+    "description": "A masterfully tailored oversized coat crafted from premium Italian wool. Features a relaxed silhouette with dropped shoulders, notched lapels, and a two-button closure. Fully lined in silk for luxurious comfort.",
+    "details": [
+      "100% Italian virgin wool outer",
+      "100% silk lining",
+      "Two-button front closure",
+      "Side welt pockets",
+      "Interior chest pocket",
+      "Dry clean only"
+    ],
+    "images": [
+      "https://images.unsplash.com/photo-1539533018447-63fcce2678e3?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1544022613-e87ca75a784a?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1608063615781-e2ef8c73d114?w=800&h=1100&fit=crop"
+    ],
+    "hoverImage": "https://images.unsplash.com/photo-1544022613-e87ca75a784a?w=800&h=1100&fit=crop",
+    "colors": [
+      { "name": "Charcoal", "value": "#36454F" },
+      { "name": "Camel", "value": "#C19A6B" },
+      { "name": "Navy", "value": "#1B2838" }
+    ],
+    "sizes": ["XS", "S", "M", "L", "XL"],
+    "status": "new",
+    "category": "Outerwear"
+  },
+  {
+    "id": "2",
+    "slug": "silk-blend-shirt",
+    "name": "Silk Blend Relaxed Shirt",
+    "price": 220,
+    "originalPrice": null,
+    "description": "An effortlessly elegant shirt crafted from a luxurious silk-cotton blend. The relaxed fit and mother-of-pearl buttons elevate everyday dressing to new heights.",
+    "details": [
+      "70% silk, 30% cotton",
+      "Relaxed fit",
+      "Mother-of-pearl buttons",
+      "French seams throughout",
+      "Single chest pocket",
+      "Machine wash cold, lay flat to dry"
+    ],
+    "images": [
+      "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1598032895397-b9472444bf93?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1603252109303-2751441dd157?w=800&h=1100&fit=crop"
+    ],
+    "hoverImage": "https://images.unsplash.com/photo-1598032895397-b9472444bf93?w=800&h=1100&fit=crop",
+    "colors": [
+      { "name": "Ivory", "value": "#FFFFF0" },
+      { "name": "Sage", "value": "#9CAF88" },
+      { "name": "Black", "value": "#1A1A1A" }
+    ],
+    "sizes": ["XS", "S", "M", "L", "XL", "XXL"],
+    "status": null,
+    "category": "Tops"
+  },
+  {
+    "id": "3",
+    "slug": "tailored-linen-trousers",
+    "name": "Tailored Linen Trousers",
+    "price": 280,
+    "originalPrice": null,
+    "description": "Impeccably tailored trousers in breathable European linen. Features a high waist, pleated front, and tapered leg for a sophisticated silhouette that transitions seamlessly from office to evening.",
+    "details": [
+      "100% European linen",
+      "High-rise waist",
+      "Double pleated front",
+      "Side and back welt pockets",
+      "Belt loops",
+      "Dry clean recommended"
+    ],
+    "images": [
+      "https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1473966968600-fa801b869a1a?w=800&h=1100&fit=crop"
+    ],
+    "hoverImage": "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=800&h=1100&fit=crop",
+    "colors": [
+      { "name": "Sand", "value": "#C2B280" },
+      { "name": "Olive", "value": "#556B2F" },
+      { "name": "Slate", "value": "#708090" }
+    ],
+    "sizes": ["28", "30", "32", "34", "36", "38"],
+    "status": null,
+    "category": "Bottoms"
+  },
+  {
+    "id": "4",
+    "slug": "cashmere-knit-sweater",
+    "name": "Cashmere Knit Sweater",
+    "price": 420,
+    "originalPrice": null,
+    "description": "Pure indulgence in the form of a perfectly weighted cashmere sweater. Sourced from Inner Mongolian goats and knitted in Scotland, this piece embodies understated luxury.",
+    "details": [
+      "100% Grade-A Mongolian cashmere",
+      "12-gauge knit",
+      "Ribbed cuffs, collar, and hem",
+      "Relaxed fit",
+      "Hand wash cold or dry clean"
+    ],
+    "images": [
+      "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1620799140188-3b2a02fd9a77?w=800&h=1100&fit=crop"
+    ],
+    "hoverImage": "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=800&h=1100&fit=crop",
+    "colors": [
+      { "name": "Oatmeal", "value": "#D3C4A5" },
+      { "name": "Burgundy", "value": "#722F37" },
+      { "name": "Forest", "value": "#228B22" }
+    ],
+    "sizes": ["XS", "S", "M", "L", "XL"],
+    "status": "limited",
+    "category": "Knitwear"
+  },
+  {
+    "id": "5",
+    "slug": "structured-blazer",
+    "name": "Structured Wool Blazer",
+    "price": 490,
+    "originalPrice": 650,
+    "description": "A timeless single-breasted blazer with impeccable structure. Crafted from superfine merino wool with a half-canvas construction for shape retention and breathability.",
+    "details": [
+      "100% superfine merino wool",
+      "Half-canvas construction",
+      "Single-breasted, two-button",
+      "Notched lapels",
+      "Four-button sleeve detail",
+      "Dry clean only"
+    ],
+    "images": [
+      "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1592878904946-b3cd8ae243d0?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1593030761757-71fae45fa0e7?w=800&h=1100&fit=crop"
+    ],
+    "hoverImage": "https://images.unsplash.com/photo-1592878904946-b3cd8ae243d0?w=800&h=1100&fit=crop",
+    "colors": [
+      { "name": "Midnight", "value": "#191970" },
+      { "name": "Charcoal", "value": "#36454F" },
+      { "name": "Tan", "value": "#D2B48C" }
+    ],
+    "sizes": ["36", "38", "40", "42", "44", "46"],
+    "status": "sale",
+    "category": "Outerwear"
+  },
+  {
+    "id": "6",
+    "slug": "minimalist-leather-belt",
+    "name": "Minimalist Leather Belt",
+    "price": 145,
+    "originalPrice": null,
+    "description": "A refined belt handcrafted from full-grain Italian leather. The brushed silver buckle and clean lines make this an essential wardrobe foundation.",
+    "details": [
+      "Full-grain Italian leather",
+      "Brushed silver hardware",
+      "32mm width",
+      "Feathered edges",
+      "Made in Italy"
+    ],
+    "images": [
+      "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1624222247344-550fb60583dc?w=800&h=1100&fit=crop"
+    ],
+    "hoverImage": "https://images.unsplash.com/photo-1624222247344-550fb60583dc?w=800&h=1100&fit=crop",
+    "colors": [
+      { "name": "Black", "value": "#1A1A1A" },
+      { "name": "Cognac", "value": "#9A463D" }
+    ],
+    "sizes": ["30", "32", "34", "36", "38", "40"],
+    "status": null,
+    "category": "Accessories"
+  },
+  {
+    "id": "7",
+    "slug": "cotton-jersey-tee",
+    "name": "Heavyweight Cotton Tee",
+    "price": 85,
+    "originalPrice": null,
+    "description": "The perfect t-shirt, elevated. Made from heavyweight organic cotton jersey with a relaxed fit and slightly dropped shoulders for effortless style.",
+    "details": [
+      "100% organic cotton, 220gsm",
+      "Relaxed fit",
+      "Dropped shoulders",
+      "Ribbed crew neck",
+      "Machine wash cold"
+    ],
+    "images": [
+      "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1562157873-818bc0726f68?w=800&h=1100&fit=crop"
+    ],
+    "hoverImage": "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=800&h=1100&fit=crop",
+    "colors": [
+      { "name": "White", "value": "#FAFAFA" },
+      { "name": "Black", "value": "#1A1A1A" },
+      { "name": "Heather Grey", "value": "#9E9E9E" },
+      { "name": "Navy", "value": "#1B2838" }
+    ],
+    "sizes": ["XS", "S", "M", "L", "XL", "XXL"],
+    "status": "new",
+    "category": "Tops"
+  },
+  {
+    "id": "8",
+    "slug": "relaxed-denim-jacket",
+    "name": "Relaxed Selvedge Denim Jacket",
+    "price": 340,
+    "originalPrice": null,
+    "description": "A modern take on the classic trucker jacket. Crafted from Japanese selvedge denim with a relaxed, boxy fit. Pre-washed for softness while retaining beautiful fade potential.",
+    "details": [
+      "14oz Japanese selvedge denim",
+      "100% cotton",
+      "Relaxed, boxy fit",
+      "Button front closure",
+      "Chest flap pockets",
+      "Machine wash cold"
+    ],
+    "images": [
+      "https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1551537482-f2075a1d41f2?w=800&h=1100&fit=crop",
+      "https://images.unsplash.com/photo-1495105787522-5334e3ffa0ef?w=800&h=1100&fit=crop"
+    ],
+    "hoverImage": "https://images.unsplash.com/photo-1551537482-f2075a1d41f2?w=800&h=1100&fit=crop",
+    "colors": [
+      { "name": "Indigo", "value": "#3F5277" },
+      { "name": "Washed Black", "value": "#2F2F2F" }
+    ],
+    "sizes": ["XS", "S", "M", "L", "XL"],
+    "status": null,
+    "category": "Outerwear"
+  }
+]
