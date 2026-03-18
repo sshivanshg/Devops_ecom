@@ -1,0 +1,16 @@
+{
+  "name": "devops-ecom",
+  "private": true,
+  "description": "DevOps E-commerce monorepo (client + server)",
+  "scripts": {
+    "prepare": "husky",
+    "test": "npm run test:server && npm run test:client",
+    "test:server": "npm run test --prefix server",
+    "test:client": "cd client && npm run test -- --run",
+    "lint": "npm run lint:client",
+    "lint:client": "cd client && npm run lint"
+  },
+  "devDependencies": {
+    "husky": "^9.0.11"
+  }
+}
