@@ -230,6 +230,14 @@ Devops_Ecom/
 
 ---
 
+## 🧩 Challenges & Workflow
+
+- **MongoDB + Aggregations:** Tuning the recommendation pipeline (`$addFields`, `$sort`) for performance with larger product sets.
+- **CI:** Keeping client (Vitest) and server (Jest) test commands and Node version in sync in GitHub Actions.
+- **EC2 Deploy:** Configuring SSH keys and nginx paths so the `lab` branch deploys the demo page reliably; using `appleboy/scp-action` and `ssh-action` for copy + restart.
+
+---
+
 ## 🗺️ Roadmap
 
 - [ ] **Stripe Integration** — Secure checkout with Stripe Elements
