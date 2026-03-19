@@ -137,6 +137,29 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 | User | demo@atelier.com | demo123 |
 
 ---
+## Testing (Unit, Integration, E2E Bonus)
+
+### Unit tests
+```bash
+# Backend (includes integration tests under server/tests/)
+cd server
+npm test
+
+# Frontend
+cd ../client
+npm test
+```
+
+### E2E bonus (Playwright)
+This test validates the login flow → Admin Portal UI. It mocks API responses so you don't need MongoDB/EC2 running for the E2E run.
+
+```bash
+cd client
+npx playwright install chromium
+npm run e2e
+```
+
+---
 
 ## 🏗️ Architecture
 

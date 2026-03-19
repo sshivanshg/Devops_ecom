@@ -28,5 +28,9 @@ module.exports = {
       files: ['vite.config.js'],
       env: { node: true },
     },
+    {
+      files: ['playwright.config.js'],
+      env: { node: true },
+    },
   ],
 };

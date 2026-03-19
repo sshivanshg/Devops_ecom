@@ -23,10 +23,10 @@ Evaluation in **2 days**. Use this to align with the rubric and improve your sub
 | Workflow in `.github/workflows/` | ✅ | `integration.yml`, `deploy-demo.yml` |
 | Triggers: push + pull_request | ✅ | integration.yml: push + PR to main |
 | Install dependencies | ✅ | client + server `npm i` |
-| **Run tests** | ❌ | **Missing in workflow** – add client + server test steps |
-| **Run linter** | ❌ | **Missing in workflow** – add client lint (and server when configured) |
+| **Run tests** | ✅ | `Lint/Test` in client (Vitest) and server (Jest) |
+| **Run linter** | ✅ | Runs client ESLint in CI |
 
-**Action:** Add test and lint steps to `.github/workflows/integration.yml`.
+**Action:** Already added.
 
 ---
 
@@ -56,7 +56,7 @@ Evaluation in **2 days**. Use this to align with the rubric and improve your sub
 
 | Rubric | Status | Notes |
 |--------|--------|--------|
-| Test interaction between modules (e.g. API+DB, Frontend+Backend) | ⚠️ | Only unit tests present. Consider one integration test (e.g. API route + DB) for extra alignment. |
+| Test interaction between modules (e.g. API+DB, Frontend+Backend) | ✅ | Added `server/tests/auth.integration.test.js` (register → login → /me) using `mongodb-memory-server`. |
 
 ---
 
@@ -64,7 +64,7 @@ Evaluation in **2 days**. Use this to align with the rubric and improve your sub
 
 | Rubric | Status |
 |--------|--------|
-| Cypress/Playwright, real user flow | Not implemented (optional bonus) |
+| Cypress/Playwright, real user flow | ✅ | Added Playwright test `client/e2e/admin-login.spec.js` (login → Admin Portal assertions) with API mocking. |
 
 ---
 
@@ -72,11 +72,11 @@ Evaluation in **2 days**. Use this to align with the rubric and improve your sub
 
 | Rubric | Status | Notes |
 |--------|--------|--------|
-| PR triggers lint | ❌ | Workflow does not run lint |
-| Lint fails on bad code | ❌ | Add lint step to CI |
+| PR triggers lint | ✅ | Workflow runs `npm run lint` for client |
+| Lint fails on bad code | ✅ | ESLint errors fail; warnings are capped (`--max-warnings 50`) |
 | ESLint / Prettier | ✅ | Client has ESLint; server has placeholder |
 
-**Action:** Add `npm run lint` (client) to workflow; optionally add server lint later.
+**Action:** Optional: add server lint later.
 
 ---
 
@@ -84,10 +84,10 @@ Evaluation in **2 days**. Use this to align with the rubric and improve your sub
 
 | Rubric | Status | Notes |
 |--------|--------|--------|
-| dependabot.yml | ❌ | **Missing** |
-| Auto-check outdated deps | ❌ | Add `.github/dependabot.yml` |
+| dependabot.yml | ✅ | Added `.github/dependabot.yml` |
+| Auto-check outdated deps | ✅ | Weekly npm updates for `client` and `server` |
 
-**Action:** Create `.github/dependabot.yml`.
+**Action:** Already added.
 
 ---
 
@@ -116,16 +116,15 @@ Evaluation in **2 days**. Use this to align with the rubric and improve your sub
 | Architecture | ✅ | README: MongoDB, Cloudinary, API diagram |
 | Workflow | ✅ | README: structure, deploy doc in .agents |
 | Design decisions | ✅ | Why MongoDB native, why Cloudinary |
-| **Challenges** | ⚠️ | Not explicitly called out – add a short "Challenges" subsection in README for full alignment |
+| **Challenges** | ✅ | Added `## 🧩 Challenges & Workflow` to README |
 
 ---
 
 ## Summary: Must-do before evaluation
 
-1. **CI:** Add **run tests** and **run linter** to `.github/workflows/integration.yml`.
-2. **Dependabot:** Add `.github/dependabot.yml`.
+1. CI and Dependabot: already added.
 3. **Commit history:** Reword vague commit messages (and optionally split commits) so history looks regular and meaningful – see next section.
-4. **Optional:** Short "Challenges" section in README; one integration test if you have time.
+4. One integration test + E2E bonus: already added.
 
 ---
 
