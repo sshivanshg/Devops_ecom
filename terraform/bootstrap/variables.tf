@@ -1,7 +1,7 @@
 variable "region" {
   type        = string
   description = "AWS region for the state bucket and lock table."
-  default     = "us-east-1"
+  default     = "ap-south-1"
 }
 
 variable "name_prefix" {
