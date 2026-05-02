@@ -105,6 +105,12 @@ jobs:
         run: |
           set -euo pipefail
           BACKEND_REGION="${TF_STATE_REGION:-$AWS_REGION}"
+          echo "Checking state bucket exists (same AWS account as CI credentials)..."
+          if ! aws s3api head-bucket --bucket "$TF_STATE_BUCKET" 2>/dev/null; then
+            echo "::error::NoSuchBucket: TF_STATE_BUCKET is set to \"$TF_STATE_BUCKET\" but that bucket does not exist (or CI cannot access it)."
+            echo "::error::Fix: In AWS (same account as AWS_ACCESS_KEY_ID) open S3, copy the exact bootstrap bucket name, update the repository secret TF_STATE_BUCKET (no quotes, no trailing spaces). Wrong AWS account also causes this."
+            exit 1
+          fi
           loc=$(aws s3api get-bucket-location --bucket "$TF_STATE_BUCKET" --query LocationConstraint --output text)
           if [ -z "$loc" ] || [ "$loc" = "None" ] || [ "$loc" = "null" ]; then
             loc="us-east-1"
