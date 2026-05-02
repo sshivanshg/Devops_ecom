@@ -21,3 +21,6 @@ override.tf.json
 server/reports/
 client/reports/
 
+# Vite production build (deployed via CI, not committed)
+client/dist/
+
