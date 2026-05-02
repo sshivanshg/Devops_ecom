@@ -1,7 +1,7 @@
 #!/bin/bash
 
 INSTANCE_ID="i-0e893df6ea4298a4d"
-REGION="us-east-1"
+REGION="ap-south-1"
 
 # -----------------------------
 # Fetch Instance State

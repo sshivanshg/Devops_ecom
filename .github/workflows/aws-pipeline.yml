@@ -92,21 +92,45 @@ jobs:
         run: |
           failed=0
           if [ -z "${TF_STATE_BUCKET// }" ]; then echo "::error::Set GitHub secret TF_STATE_BUCKET (bootstrap output tfstate_bucket_name)."; failed=1; fi
-          if [ -z "${AWS_REGION// }" ]; then echo "::error::Set GitHub secret AWS_REGION (e.g. us-east-1)."; failed=1; fi
+          if [ -z "${AWS_REGION// }" ]; then echo "::error::Set GitHub secret AWS_REGION (e.g. ap-south-1)."; failed=1; fi
           if [ -z "${TF_STATE_DYNAMODB_TABLE// }" ]; then echo "::error::Set GitHub secret TF_STATE_DYNAMODB_TABLE (bootstrap output tfstate_lock_table_name)."; failed=1; fi
           exit $failed
 
+      # S3 ListObjectsV2 returns 301 if backend "region" != bucket's real region (common: wrong TF_STATE_BUCKET or missing TF_STATE_REGION).
+      - name: Verify state bucket region matches backend region
+        env:
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          TF_STATE_REGION: ${{ secrets.TF_STATE_REGION }}
+        run: |
+          set -euo pipefail
+          BACKEND_REGION="${TF_STATE_REGION:-$AWS_REGION}"
+          loc=$(aws s3api get-bucket-location --bucket "$TF_STATE_BUCKET" --query LocationConstraint --output text)
+          if [ -z "$loc" ] || [ "$loc" = "None" ] || [ "$loc" = "null" ]; then
+            loc="us-east-1"
+          fi
+          echo "State bucket: $TF_STATE_BUCKET"
+          echo "Bucket AWS region: $loc"
+          echo "Terraform S3 backend region: $BACKEND_REGION"
+          if [ "$loc" != "$BACKEND_REGION" ]; then
+            echo "::error::Region mismatch. This bucket lives in '$loc' but init uses '$BACKEND_REGION'."
+            echo "::error::Fix: (1) Set TF_STATE_BUCKET to the bucket you created in the same region as AWS_REGION, OR (2) Set TF_STATE_REGION=$loc so init targets the bucket's real region while AWS_REGION stays your app region."
+            exit 1
+          fi
+
+      # S3 backend "region" must match the region where TF_STATE_BUCKET was created.
+      # If bootstrap ran in us-east-1 but AWS_REGION is ap-south-1, set secret TF_STATE_REGION to the bucket region or you get S3 301 redirects on init.
       - name: Terraform init (S3 backend)
         env:
           BUCKET: ${{ secrets.TF_STATE_BUCKET }}
           KEY: ${{ secrets.TF_STATE_KEY || 'devops-ecom/terraform.tfstate' }}
-          REGION: ${{ secrets.AWS_REGION }}
+          BACKEND_REGION: ${{ secrets.TF_STATE_REGION || secrets.AWS_REGION }}
           DYNAMODB_TABLE: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
         run: |
           terraform init -input=false \
             -backend-config="bucket=$BUCKET" \
             -backend-config="key=$KEY" \
-            -backend-config="region=$REGION" \
+            -backend-config="region=$BACKEND_REGION" \
             -backend-config="dynamodb_table=$DYNAMODB_TABLE"
 
       - name: Terraform validate

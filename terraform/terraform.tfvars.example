@@ -1,7 +1,7 @@
 # Copy to terraform.tfvars (do not commit secrets) or pass -var on the CLI.
 # GitHub Actions sets TF_VAR_* from repository secrets instead.
 
-aws_region = "us-east-1"
+aws_region = "ap-south-1"
 
 # Optional: override default project prefix
 # project_name = "devops-ecom"
