@@ -10,7 +10,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-env:
+env:~
   TF_IN_AUTOMATION: true
 
 jobs:
@@ -193,7 +193,15 @@ jobs:
           docker push "${REPO_URL}:latest"
           echo "IMAGE_URI=${REPO_URL}:${IMAGE_TAG}" >> "$GITHUB_ENV"
 
+      # Merge Secrets Manager ARNs here because Terraform uses lifecycle.ignore_changes on container_definitions.
+      # Also ensure a terraform apply ran once with TF_VAR_* set so the execution role has secretsmanager:GetSecretValue.
       - name: Register task definition and update ECS service
+        env:
+          DATABASE_URL_SECRET_ARN: ${{ secrets.DATABASE_URL_SECRET_ARN }}
+          JWT_SECRET_ARN: ${{ secrets.JWT_SECRET_ARN }}
+          CLOUDINARY_CLOUD_NAME_SECRET_ARN: ${{ secrets.CLOUDINARY_CLOUD_NAME_SECRET_ARN }}
+          CLOUDINARY_API_KEY_SECRET_ARN: ${{ secrets.CLOUDINARY_API_KEY_SECRET_ARN }}
+          CLOUDINARY_API_SECRET_SECRET_ARN: ${{ secrets.CLOUDINARY_API_SECRET_SECRET_ARN }}
         run: |
           set -euo pipefail
           FAMILY=$(jq -r '.task_definition_family.value' terraform-outputs.json)
@@ -201,18 +209,55 @@ jobs:
           SERVICE=$(jq -r '.ecs_service_name.value' terraform-outputs.json)
           aws ecs describe-task-definition --task-definition "$FAMILY" --query taskDefinition > td.json
           jq --arg IMAGE "$IMAGE_URI" \
+            --arg DBARN "${DATABASE_URL_SECRET_ARN:-}" \
+            --arg JWTARN "${JWT_SECRET_ARN:-}" \
+            --arg CCN "${CLOUDINARY_CLOUD_NAME_SECRET_ARN:-}" \
+            --arg CAK "${CLOUDINARY_API_KEY_SECRET_ARN:-}" \
+            --arg CAS "${CLOUDINARY_API_SECRET_SECRET_ARN:-}" \
             'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt,.tags)
-             | .containerDefinitions |= map(if .name == "app" then .image = $IMAGE | del(.command) else . end)' \
+             | .containerDefinitions |= map(
+                 if .name == "app" then
+                   .image = $IMAGE
+                   | del(.command)
+                   | .secrets = (
+                       (if ($DBARN | length) > 0 then [{name:"DATABASE_URL",valueFrom:$DBARN}] else [] end)
+                     + (if ($JWTARN | length) > 0 then [{name:"JWT_SECRET",valueFrom:$JWTARN}] else [] end)
+                     + (if ($CCN | length) > 0 then [{name:"CLOUDINARY_CLOUD_NAME",valueFrom:$CCN}] else [] end)
+                     + (if ($CAK | length) > 0 then [{name:"CLOUDINARY_API_KEY",valueFrom:$CAK}] else [] end)
+                     + (if ($CAS | length) > 0 then [{name:"CLOUDINARY_API_SECRET",valueFrom:$CAS}] else [] end)
+                   )
+                 else . end
+               )' \
             td.json > td-new.json
           NEW_ARN=$(aws ecs register-task-definition --cli-input-json file://td-new.json --query taskDefinition.taskDefinitionArn --output text)
           aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --task-definition "$NEW_ARN" --force-new-deployment
 
       - name: Wait for ECS service stable
         run: |
-          set -euo pipefail
+          set -uo pipefail
           CLUSTER=$(jq -r '.ecs_cluster_name.value' terraform-outputs.json)
           SERVICE=$(jq -r '.ecs_service_name.value' terraform-outputs.json)
-          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
+          if aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"; then
+            echo "ECS service is stable."
+          else
+            echo "::error::ECS service did not become stable (waiter max attempts). Common causes: app crash on boot (MongoDB DATABASE_URL), failed ALB health checks, or image pull errors."
+            echo "=== Recent service events ==="
+            aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
+              --query 'services[0].events[:15]' --output table 2>/dev/null || true
+            echo "=== Stopped tasks (latest, up to 5) ==="
+            TASKS=$(aws ecs list-tasks --cluster "$CLUSTER" --service-name "$SERVICE" --desired-status STOPPED \
+              --max-items 5 --query 'taskArns[]' --output text 2>/dev/null || true)
+            for arn in $TASKS; do
+              [ -z "$arn" ] || [ "$arn" = "None" ] && continue
+              echo "--- $arn ---"
+              aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$arn" \
+                --query 'tasks[0].{stoppedReason:stoppedReason,stopCode:stopCode,containers:containers[*].{name:name,reason:reason,exitCode:exitCode}}' \
+                --output json 2>/dev/null || true
+            done
+            echo "=== CloudWatch log group (tail hint) ==="
+            echo "/ecs/devops-ecom-app — open Logs Insights in the same region as ECS."
+            exit 1
+          fi
 
       - name: Verify ALB /api/health
         run: |
