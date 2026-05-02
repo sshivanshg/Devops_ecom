@@ -6,3 +6,18 @@ node_modules
 
 *.pem
 
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.tfstate.lock.info
+
+# CI test output (generated locally)
+server/reports/
+client/reports/
+

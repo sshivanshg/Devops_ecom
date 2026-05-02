@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars (do not commit secrets) or pass -var on the CLI.
+# GitHub Actions sets TF_VAR_* from repository secrets instead.
+
+aws_region = "us-east-1"
+
+# Optional: override default project prefix
+# project_name = "devops-ecom"
+
+# Secrets Manager ARNs (full secret ARN strings)
+# database_url_secret_arn         = "arn:aws:secretsmanager:..."
+# jwt_secret_arn                  = "arn:aws:secretsmanager:..."
+# cloudinary_cloud_name_arn       = "arn:aws:secretsmanager:..."
+# cloudinary_api_key_arn          = "arn:aws:secretsmanager:..."
+# cloudinary_api_secret_arn       = "arn:aws:secretsmanager:..."

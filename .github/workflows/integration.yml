@@ -1,10 +1,7 @@
 name: Integration
 
+# Quick manual test run only. Main branch CI + deploy uses aws-pipeline.yml.
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:

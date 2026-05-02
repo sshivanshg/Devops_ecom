@@ -1,0 +1,174 @@
+# Rubric order: tests → Terraform → Docker build/push → ECS deploy → verify.
+# Prerequisites: see terraform/BOOTSTRAP_AND_SECRETS.txt (bootstrap state bucket + GitHub secrets).
+
+name: AWS Pipeline (ECS)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  TF_IN_AUTOMATION: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: client
+
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: server
+
+      - name: Lint client
+        run: npm run lint
+        working-directory: client
+
+      - name: Test client (Vitest + JUnit)
+        run: mkdir -p reports && npm run test -- --run
+        working-directory: client
+
+      - name: Test server (Jest + JUnit)
+        run: mkdir -p reports && npm run test -- --ci
+        working-directory: server
+
+      - name: Collect test reports
+        run: |
+          mkdir -p combined-reports
+          cp server/reports/*.xml combined-reports/ 2>/dev/null || true
+          cp client/reports/*.xml combined-reports/ 2>/dev/null || true
+          ls -la combined-reports/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: combined-reports/
+          if-no-files-found: warn
+
+  terraform:
+    needs: [test]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    env:
+      TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+      TF_VAR_database_url_secret_arn: ${{ secrets.DATABASE_URL_SECRET_ARN }}
+      TF_VAR_jwt_secret_arn: ${{ secrets.JWT_SECRET_ARN }}
+      TF_VAR_cloudinary_cloud_name_arn: ${{ secrets.CLOUDINARY_CLOUD_NAME_SECRET_ARN }}
+      TF_VAR_cloudinary_api_key_arn: ${{ secrets.CLOUDINARY_API_KEY_SECRET_ARN }}
+      TF_VAR_cloudinary_api_secret_arn: ${{ secrets.CLOUDINARY_API_SECRET_SECRET_ARN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+
+      - name: Terraform init (S3 backend)
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="key=${{ secrets.TF_STATE_KEY }}" \
+            -backend-config="region=${{ secrets.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ secrets.TF_STATE_DYNAMODB_TABLE }}"
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        run: terraform plan -input=false -no-color
+
+      - name: Terraform apply
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        run: terraform apply -input=false -auto-approve -no-color
+
+      - name: Write Terraform outputs
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        run: terraform output -json > "$GITHUB_WORKSPACE/terraform-outputs.json"
+
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        with:
+          name: terraform-outputs
+          path: terraform-outputs.json
+
+  docker-ecs:
+    needs: [terraform]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: terraform-outputs
+          path: .
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          REPO_URL=$(jq -r '.ecr_repository_url.value' terraform-outputs.json)
+          docker build -t "${REPO_URL}:${IMAGE_TAG}" -t "${REPO_URL}:latest" .
+          docker push "${REPO_URL}:${IMAGE_TAG}"
+          docker push "${REPO_URL}:latest"
+          echo "IMAGE_URI=${REPO_URL}:${IMAGE_TAG}" >> "$GITHUB_ENV"
+
+      - name: Register task definition and update ECS service
+        run: |
+          set -euo pipefail
+          FAMILY=$(jq -r '.task_definition_family.value' terraform-outputs.json)
+          CLUSTER=$(jq -r '.ecs_cluster_name.value' terraform-outputs.json)
+          SERVICE=$(jq -r '.ecs_service_name.value' terraform-outputs.json)
+          aws ecs describe-task-definition --task-definition "$FAMILY" --query taskDefinition > td.json
+          jq --arg IMAGE "$IMAGE_URI" \
+            'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt,.tags)
+             | .containerDefinitions |= map(if .name == "app" then .image = $IMAGE | del(.command) else . end)' \
+            td.json > td-new.json
+          NEW_ARN=$(aws ecs register-task-definition --cli-input-json file://td-new.json --query taskDefinition.taskDefinitionArn --output text)
+          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --task-definition "$NEW_ARN" --force-new-deployment
+
+      - name: Wait for ECS service stable
+        run: |
+          set -euo pipefail
+          CLUSTER=$(jq -r '.ecs_cluster_name.value' terraform-outputs.json)
+          SERVICE=$(jq -r '.ecs_service_name.value' terraform-outputs.json)
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
+
+      - name: Verify ALB /api/health
+        run: |
+          set -euo pipefail
+          ALB=$(jq -r '.alb_dns_name.value' terraform-outputs.json)
+          curl -fsS "http://${ALB}/api/health" | head -c 500
+          echo

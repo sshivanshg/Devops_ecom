@@ -3,8 +3,14 @@
  * Centralized API calls to the backend
  */
 
-// Base API URL - falls back to deployed backend if not provided
-const API_URL = import.meta.env.VITE_API_URL || 'https://devops-ecom.onrender.com';
+// Base API URL: explicit env wins; in dev, default to deployed API; in prod build, same-origin (empty) when unset
+const envApi = import.meta.env.VITE_API_URL;
+const API_URL =
+  envApi !== undefined && envApi !== ''
+    ? envApi
+    : import.meta.env.DEV
+      ? 'https://devops-ecom.onrender.com'
+      : '';
 
 /**
  * Generic fetch wrapper with error handling

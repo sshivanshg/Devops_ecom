@@ -3,8 +3,13 @@
  * ATELIER - Luxury E-commerce Backend
  */
 
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
+
+const publicDist = path.join(__dirname, '..', 'public');
+const serveSpa = fs.existsSync(path.join(publicDist, 'index.html'));
 
 // Import routes
 const productsRouter = require('./routes/products');
@@ -65,23 +70,34 @@ app.use('/api/config', configRouter);
 app.use('/api/settings', configRouter); // Alias for site settings
 app.use('/api/media', mediaRouter); // Cloudinary image management
 
-// Root Route
-app.get('/', (req, res) => {
-  res.json({
-    name: 'ATELIER API',
-    version: '1.0.0',
-    endpoints: {
-      health: '/api/health',
-      products: '/api/products',
-      cart: '/api/cart',
-      users: '/api/users',
-      auth: '/api/auth',
-      admin: '/api/admin (protected)',
-      config: '/api/config',
-      media: '/api/media (protected - Cloudinary)'
-    }
+// Root route (API discovery) — skipped when a built SPA is present (e.g. Docker)
+if (!serveSpa) {
+  app.get('/', (req, res) => {
+    res.json({
+      name: 'ATELIER API',
+      version: '1.0.0',
+      endpoints: {
+        health: '/api/health',
+        products: '/api/products',
+        cart: '/api/cart',
+        users: '/api/users',
+        auth: '/api/auth',
+        admin: '/api/admin (protected)',
+        config: '/api/config',
+        media: '/api/media (protected - Cloudinary)'
+      }
+    });
   });
-});
+}
+
+// Production: serve Vite build from ../public (same origin as /api)
+if (serveSpa) {
+  app.use(express.static(publicDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(publicDist, 'index.html'));
+  });
+}
 
 // 404 Handler
 app.use((req, res) => {

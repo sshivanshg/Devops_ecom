@@ -25,5 +25,9 @@ export default defineConfig({
         // Prevent Playwright E2E specs from being picked up by Vitest.
         include: ['src/**/*.{test,spec}.{js,jsx}'],
         exclude: ['node_modules/**', '**/e2e/**'],
+        reporters: ['default', 'junit'],
+        outputFile: {
+            junit: './reports/junit-client.xml',
+        },
     },
 })
