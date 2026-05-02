@@ -24,9 +24,15 @@ const app = express();
 
 // Middleware
 // CORS: allow deployed frontend + localhost for development/testing
+const additionalCorsOrigins = (process.env.ADDITIONAL_CORS_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
+  ...additionalCorsOrigins,
 ].filter(Boolean);
 console.log("allowedOrigins",allowedOrigins);
 // console.log(process.env.NODE_ENV);
