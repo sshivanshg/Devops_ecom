@@ -10,7 +10,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-env:~
+env:
   TF_IN_AUTOMATION: true
 
 jobs:
